@@ -20,6 +20,7 @@
     "multer": "^2.4.0",
     "pg": "^8.16.3",
     "sharp": "^0.35.5",
+    "tsx": "^4.20.5",
     "zod": "^3.25.76"
   },
   "devDependencies": {
@@ -30,7 +31,6 @@
     "@types/multer": "^2.3.0",
     "@types/node": "^22.17.2",
     "@types/pg": "^8.15.5",
-    "tsx": "^4.20.5",
     "typescript": "^5.9.2"
   }
 }

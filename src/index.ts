@@ -5,6 +5,7 @@ import helmet from "helmet";
 import { errorHandler } from "./http.js";
 import { apiRouter } from "./routes/index.js";
 import { checkConnection } from "./db.js";
+import { runMigrations } from "./migrate.js";
 import { databaseTarget } from "./pgConfig.js";
 
 dotenv.config();
@@ -25,17 +26,26 @@ app.use("/api", apiRouter);
 app.use(errorHandler);
 
 const port = Number(process.env.PORT || 4000);
-app.listen(port, "0.0.0.0", () => {
-  const target = databaseTarget();
-  console.log(`Property API listening on http://0.0.0.0:${port}`);
-  checkConnection()
-    .then((now) => {
-      console.log(`Database connected: ${target}`);
-      console.log(`Database time: ${now?.toISOString()}`);
-    })
-    .catch((error: unknown) => {
-      const message = error instanceof Error ? error.message : "Unknown database error";
-      console.error(`Database not connected: ${target}`);
-      console.error(message);
+
+runMigrations()
+  .then(() => {
+    app.listen(port, "0.0.0.0", () => {
+      const target = databaseTarget();
+      console.log(`Property API listening on http://0.0.0.0:${port}`);
+      checkConnection()
+        .then((now) => {
+          console.log(`Database connected: ${target}`);
+          console.log(`Database time: ${now?.toISOString()}`);
+        })
+        .catch((error: unknown) => {
+          const message = error instanceof Error ? error.message : "Unknown database error";
+          console.error(`Database not connected: ${target}`);
+          console.error(message);
+        });
     });
-});
+  })
+  .catch((error: unknown) => {
+    const message = error instanceof Error ? error.message : "Migration failed";
+    console.error(message);
+    process.exit(1);
+  });
