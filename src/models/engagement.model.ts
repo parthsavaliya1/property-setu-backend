@@ -142,4 +142,106 @@ export const EngagementModel = {
     );
     return result.rows[0] ?? null;
   },
+
+  async chats(db: Db) {
+    const result = await db.query(
+      `SELECT c.id, c.property_id, c.buyer_id, c.owner_id, c.created_at,
+              p.title AS property_title,
+              CASE WHEN c.buyer_id = auth.uid() THEN owner_profile.full_name ELSE buyer_profile.full_name END AS other_name,
+              (SELECT m.body FROM chat_messages m WHERE m.conversation_id = c.id ORDER BY m.created_at DESC LIMIT 1) AS last_message,
+              (SELECT m.created_at FROM chat_messages m WHERE m.conversation_id = c.id ORDER BY m.created_at DESC LIMIT 1) AS last_at
+       FROM conversations c
+       JOIN properties p ON p.id = c.property_id
+       LEFT JOIN user_profiles buyer_profile ON buyer_profile.id = c.buyer_id
+       LEFT JOIN user_profiles owner_profile ON owner_profile.id = c.owner_id
+       WHERE c.buyer_id = auth.uid() OR c.owner_id = auth.uid()
+       ORDER BY last_at DESC NULLS LAST, c.created_at DESC`
+    );
+    return result.rows;
+  },
+
+  async openChat(db: Db, propertyId: string, buyerId?: string) {
+    const property = await PropertyModel.find(db, propertyId, false);
+    if (!property) throw new HttpError(404, "Property not found");
+    if (buyerId) {
+      const matched = await db.query(
+        `SELECT * FROM conversations
+         WHERE property_id = $1 AND buyer_id = $2
+           AND (buyer_id = auth.uid() OR owner_id = auth.uid())`,
+        [property.id, buyerId]
+      );
+      if (matched.rows[0]) return matched.rows[0];
+      const createdForBuyer = await db.query(
+        `INSERT INTO conversations (property_id, buyer_id, owner_id)
+         SELECT $1, $2, p.owner_id
+         FROM properties p
+         WHERE p.id = $1 AND p.owner_id = auth.uid() AND $2 IS DISTINCT FROM auth.uid()
+         ON CONFLICT (property_id, buyer_id) DO UPDATE SET property_id = EXCLUDED.property_id
+         RETURNING *`,
+        [property.id, buyerId]
+      );
+      if (createdForBuyer.rows[0]) return createdForBuyer.rows[0];
+    }
+    const existing = await db.query(
+      `SELECT * FROM conversations WHERE property_id = $1 AND buyer_id = auth.uid()`,
+      [property.id]
+    );
+    if (existing.rows[0]) return existing.rows[0];
+    const created = await db.query(
+      `INSERT INTO conversations (property_id, buyer_id, owner_id)
+       SELECT $1, auth.uid(), p.owner_id
+       FROM properties p
+       WHERE p.id = $1 AND p.owner_id IS DISTINCT FROM auth.uid()
+       ON CONFLICT (property_id, buyer_id) DO UPDATE SET property_id = EXCLUDED.property_id
+       RETURNING *`,
+      [property.id]
+    );
+    if (!created.rows[0]) throw new HttpError(400, "Open Messages to reply to buyers on your own listing.");
+    return created.rows[0];
+  },
+
+  async messages(db: Db, conversationId: string) {
+    const thread = await db.query(`SELECT id FROM conversations WHERE id = $1`, [conversationId]);
+    if (!thread.rows[0]) throw new HttpError(404, "Chat not found");
+    const result = await db.query(
+      `SELECT id, conversation_id, sender_id, body, created_at,
+              sender_id = auth.uid() AS mine
+       FROM chat_messages
+       WHERE conversation_id = $1
+       ORDER BY created_at ASC`,
+      [conversationId]
+    );
+    return result.rows;
+  },
+
+  async sendMessage(db: Db, conversationId: string, body: string) {
+    const thread = await db.query(
+      `SELECT id, property_id, buyer_id FROM conversations WHERE id = $1`,
+      [conversationId]
+    );
+    const conversation = thread.rows[0];
+    if (!conversation) throw new HttpError(404, "Chat not found");
+    const text = body.trim();
+    const buyer = await db.query(`SELECT auth.uid() = $1 AS mine`, [conversation.buyer_id]);
+    const prior = await db.query(
+      `SELECT id FROM property_inquiries WHERE property_id = $1 AND buyer_id = auth.uid() LIMIT 1`,
+      [conversation.property_id]
+    );
+    if (!prior.rows[0] && buyer.rows[0]?.mine) {
+      await db.query(`SELECT set_config('app.skip_chat_notify', '1', true)`);
+      await db.query(
+        `INSERT INTO property_inquiries (property_id, buyer_id, message, inquiry_type)
+         VALUES ($1, auth.uid(), $2, 'message')`,
+        [conversation.property_id, text]
+      );
+    }
+    const result = await db.query(
+      `INSERT INTO chat_messages (conversation_id, sender_id, body)
+       VALUES ($1, auth.uid(), $2)
+       RETURNING id, conversation_id, sender_id, body, created_at, true AS mine`,
+      [conversationId, text]
+    );
+    if (!result.rows[0]) throw new HttpError(404, "Chat not found");
+    return result.rows[0];
+  },
 };

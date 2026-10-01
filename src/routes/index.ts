@@ -29,6 +29,7 @@ apiRouter.post("/properties/:id/view", optionalUser, PropertyController.view);
 apiRouter.post("/payments/order", requireUser, PaymentController.order);
 apiRouter.post("/payments/verify", requireUser, PaymentController.verify);
 apiRouter.get("/wallet", requireUser, WalletController.show);
+apiRouter.get("/wallet/transactions", requireUser, WalletController.history);
 apiRouter.post("/wallet/order", requireUser, WalletController.order);
 apiRouter.post("/wallet/verify", requireUser, WalletController.verify);
 apiRouter.post("/wallet/spend", requireUser, WalletController.spend);
@@ -51,6 +52,10 @@ apiRouter.post("/saved-searches", requireUser, EngagementController.createSavedS
 apiRouter.delete("/saved-searches/:id", requireUser, EngagementController.deleteSavedSearch);
 apiRouter.get("/notifications", requireUser, EngagementController.notifications);
 apiRouter.patch("/notifications/:id/read", requireUser, EngagementController.readNotification);
+apiRouter.get("/chats", requireUser, EngagementController.chats);
+apiRouter.post("/properties/:id/chat", requireUser, EngagementController.openChat);
+apiRouter.get("/chats/:id/messages", requireUser, EngagementController.messages);
+apiRouter.post("/chats/:id/messages", requireUser, EngagementController.sendMessage);
 apiRouter.post("/properties/:id/images", requireUser, EngagementController.addImage);
 apiRouter.delete("/properties/:id/images/:imageId", requireUser, EngagementController.removeImage);
 

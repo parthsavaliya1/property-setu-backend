@@ -120,6 +120,28 @@ export const EngagementController = {
     res.json(row);
   }),
 
+  chats: asyncRoute(async (req, res) => {
+    const rows = await withDb(req.user!.id, (db) => EngagementModel.chats(db));
+    res.json(rows);
+  }),
+
+  openChat: asyncRoute(async (req, res) => {
+    const body = z.object({ buyer_id: z.string().uuid().optional() }).parse(req.body ?? {});
+    const row = await withDb(req.user!.id, (db) => EngagementModel.openChat(db, req.params.id, body.buyer_id));
+    res.status(201).json(row);
+  }),
+
+  messages: asyncRoute(async (req, res) => {
+    const rows = await withDb(req.user!.id, (db) => EngagementModel.messages(db, req.params.id));
+    res.json(rows);
+  }),
+
+  sendMessage: asyncRoute(async (req, res) => {
+    const body = z.object({ body: z.string().trim().min(1).max(2000) }).parse(req.body);
+    const row = await withDb(req.user!.id, (db) => EngagementModel.sendMessage(db, req.params.id, body.body));
+    res.status(201).json(row);
+  }),
+
   addImage: asyncRoute(async (req, res) => {
     const body = z.object({
       image_url: z.string().url(),

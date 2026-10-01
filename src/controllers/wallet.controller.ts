@@ -25,6 +25,21 @@ export const WalletController = {
     res.json({ balance: Number(wallet?.balance ?? 0) });
   }),
 
+  history: asyncRoute(async (req, res) => {
+    const rows = await withDb(req.user!.id, async (db) => {
+      const result = await db.query(
+        `SELECT t.id, t.amount, t.direction, t.reason, t.property_id, t.created_at, p.title AS property_title
+         FROM wallet_transactions t
+         LEFT JOIN properties p ON p.id = t.property_id
+         WHERE t.user_id = auth.uid()
+         ORDER BY t.created_at DESC
+         LIMIT 100`
+      );
+      return result.rows;
+    });
+    res.json(rows);
+  }),
+
   order: asyncRoute(async (req, res) => {
     const body = z.object({ amount: z.coerce.number().int().min(1).max(100000) }).parse(req.body);
     const receipt = `w${req.user!.id.replace(/-/g, "").slice(0, 12)}${Date.now().toString(36)}`.slice(0, 40);
