@@ -27,7 +27,7 @@ export const AdminController = {
     await assertAdmin(req.user!.id);
     const body = z.object({
       status: z.enum(["draft", "pending_review", "published", "rejected", "sold", "rented", "expired", "archived"]).optional(),
-      verification_status: z.enum(["pending", "submitted", "verified", "rejected"]).optional(),
+      verification_status: z.enum(["pending", "submitted", "verified", "rejected", "active"]).optional(),
       is_featured: z.boolean().optional(),
       is_premium: z.boolean().optional(),
     }).parse(req.body);

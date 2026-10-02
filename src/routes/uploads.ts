@@ -17,7 +17,22 @@ function extForType(contentType: string) {
   if (contentType === "image/gif") return ".gif";
   if (contentType === "video/mp4") return ".mp4";
   if (contentType === "application/pdf") return ".pdf";
+  if (contentType === "application/msword") return ".doc";
+  if (contentType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") return ".docx";
+  if (contentType === "text/plain") return ".txt";
   return ".jpg";
+}
+
+function isDocument(mime: string, name: string) {
+  const lower = name.toLowerCase();
+  return mime === "application/pdf"
+    || mime === "application/msword"
+    || mime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    || mime === "text/plain"
+    || lower.endsWith(".pdf")
+    || lower.endsWith(".doc")
+    || lower.endsWith(".docx")
+    || lower.endsWith(".txt");
 }
 
 export const uploadRouter = Router();
@@ -47,18 +62,22 @@ uploadRouter.post(
     }
 
     const kind = String(req.body?.kind || "image");
+    const original = (file.originalname || "").toLowerCase();
     let mime = file.mimetype || "application/octet-stream";
     if (!mime || mime === "application/octet-stream") {
       if (kind === "video") mime = "video/mp4";
-      else if (kind === "document") mime = "application/pdf";
+      else if (original.endsWith(".docx")) mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+      else if (original.endsWith(".doc")) mime = "application/msword";
+      else if (original.endsWith(".txt")) mime = "text/plain";
+      else if (kind === "document" || original.endsWith(".pdf")) mime = "application/pdf";
       else mime = "image/jpeg";
     }
     const image = mime.startsWith("image/");
     const video = kind === "video" || mime.startsWith("video/");
-    const pdf = mime === "application/pdf" || file.originalname.toLowerCase().endsWith(".pdf");
+    const document = kind === "document" && isDocument(mime, file.originalname || "");
 
-    if (!image && !video && !pdf) {
-      res.status(400).json({ error: "Upload a photo, PDF, or video." });
+    if (!image && !video && !document) {
+      res.status(400).json({ error: "Upload a photo, PDF, document, or video." });
       return;
     }
 
@@ -79,13 +98,11 @@ uploadRouter.post(
         const message = err instanceof Error ? err.message : "compress failed";
         console.error(`[image-compress] failed, uploading original: ${message}`);
       }
-    } else {
-      contentType = "application/pdf";
     }
 
     const ext = extForType(contentType);
     if (!name.toLowerCase().endsWith(ext)) name = `${name.replace(/\.[^.]+$/, "")}${ext}`;
-    const folder = video || contentType.startsWith("video/") ? "video" : kind === "document" || pdf ? "document" : "image";
+    const folder = video || contentType.startsWith("video/") ? "video" : document ? "document" : "image";
     const saved = await uploadBuffer(buffer, {
       remoteKey: buildPropertyKey(folder, name, contentType),
       contentType,

@@ -127,27 +127,6 @@ export async function expireDueListings() {
   }
 }
 
-async function applyListingBadge(id: string, badge: "standard" | "premium" | "featured") {
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
-    await client.query("SET LOCAL session_replication_role = replica");
-    await client.query(
-      `UPDATE properties SET is_premium = $2, is_featured = $3 WHERE id = $1`,
-      [id, badge === "premium", badge === "featured"]
-    );
-    await client.query("COMMIT");
-  } catch {
-    try {
-      await client.query("ROLLBACK");
-    } catch {
-      /* listing still publishes; the Premium label is stored on the property */
-    }
-  } finally {
-    client.release();
-  }
-}
-
 export const CatalogController = {
   health: asyncRoute(async (_req, res) => {
     res.json({
@@ -182,6 +161,7 @@ export const PropertyController = {
       city: z.string().optional(),
       prefer_city: z.string().trim().optional(),
       city_first: z.enum(["true", "false"]).optional(),
+      listing_tier: z.enum(["premium", "standard"]).optional(),
       min_price: z.coerce.number().optional(),
       max_price: z.coerce.number().optional(),
       bedrooms: z.coerce.number().int().optional(),
@@ -235,20 +215,32 @@ export const PropertyController = {
     }
     const updated = await withDb(req.user!.id, (db) => PropertyModel.update(db, req.params.id, body));
     if (!updated) throw new HttpError(404, "Property not found");
-    if (body.listing_badge) {
-      await applyListingBadge(updated.id, body.listing_badge);
-      updated.is_premium = body.listing_badge === "premium";
-      updated.is_featured = body.listing_badge === "featured";
-      updated.listing_label = body.listing_badge === "premium" ? "Premium" : body.listing_badge === "featured" ? "Featured" : null;
-    }
     res.json(updated);
   }),
 
   remove: asyncRoute(async (req, res) => {
     const hard = req.query.hard === "true";
-    const result = await withDb(req.user!.id, (db) => PropertyModel.remove(db, req.params.id, hard));
-    if (!result) throw new HttpError(404, "Property not found");
-    res.json(result);
+    const existing = await withDb(req.user!.id, (db) => PropertyModel.find(db, req.params.id, false));
+    if (!existing || existing.owner_id !== req.user!.id) throw new HttpError(404, "Property not found");
+    if (!hard) {
+      const result = await withDb(req.user!.id, (db) => PropertyModel.remove(db, req.params.id, false));
+      if (!result) throw new HttpError(404, "Property not found");
+      res.json(result);
+      return;
+    }
+    const client = await pool.connect();
+    try {
+      const result = await client.query(`DELETE FROM public.properties WHERE id = $1 AND owner_id = $2`, [existing.id, req.user!.id]);
+      if (!result.rowCount) throw new HttpError(404, "Property not found");
+    } catch (error) {
+      if (error instanceof HttpError) throw error;
+      const code = (error as { code?: string }).code;
+      if (code === "23503") throw new HttpError(409, "This property cannot be deleted yet");
+      throw error;
+    } finally {
+      client.release();
+    }
+    res.json({ id: existing.id, archived: false });
   }),
 
   view: asyncRoute(async (req, res) => {
@@ -272,5 +264,25 @@ export const UserController = {
     const body = profileBody.parse(req.body);
     const profile = await withDb(req.user!.id, (db) => UserModel.updateProfile(db, body));
     res.json(profile);
+  }),
+
+  remove: asyncRoute(async (req, res) => {
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(`DELETE FROM public.properties WHERE owner_id = $1`, [req.user!.id]);
+      const result = await client.query(`DELETE FROM public.accounts WHERE id = $1`, [req.user!.id]);
+      if (!result.rowCount) throw new HttpError(404, "Account not found");
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      if (error instanceof HttpError) throw error;
+      const code = (error as { code?: string }).code;
+      if (code === "23503") throw new HttpError(409, "This account cannot be deleted yet");
+      throw error;
+    } finally {
+      client.release();
+    }
+    res.status(204).end();
   }),
 };

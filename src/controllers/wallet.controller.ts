@@ -3,7 +3,7 @@ import type { PoolClient } from "pg";
 import { pool, withDb } from "../db.js";
 import { HttpError } from "../errors.js";
 import { asyncRoute } from "../http.js";
-import { confirmedPayment, createRazorpayOrder, listingFeeRupees, type ListingBadge, type ListingTerm } from "../services/razorpay.js";
+import { confirmedPayment, createRazorpayOrder, upgradeCharge, type ListingBadge, type ListingTerm } from "../services/razorpay.js";
 import { verifyPaymentSignature } from "../services/razorpay.js";
 
 const badge = z.enum(["standard", "premium"]);
@@ -118,7 +118,6 @@ async function creditWallet(userId: string, amount: number, paymentId: string, o
     if (inserted.rows[0]) {
       await client.query(`UPDATE wallets SET balance = balance + $2, updated_at = now() WHERE user_id = $1`, [userId, amount]);
     }
-    await client.query("SET LOCAL session_replication_role = replica");
     await client.query(
       `UPDATE payments SET status = 'paid', paid_at = now(), transaction_id = $2
        WHERE transaction_id = $1 AND user_id = $3`,
@@ -140,49 +139,93 @@ async function creditWallet(userId: string, amount: number, paymentId: string, o
 }
 
 async function spendForListing(userId: string, propertyId: string, plan: ListingBadge, listingTerm: ListingTerm) {
-  const fee = listingFeeRupees(plan, listingTerm);
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
+    const current = await client.query(
+      `SELECT p.status, p.expires_at, p.is_premium,
+         COALESCE(
+           (SELECT f.feature_value FROM property_features f
+            WHERE f.property_id = p.id AND f.feature_key = 'listing_term' LIMIT 1),
+           CASE
+             WHEN p.expires_at IS NOT NULL
+               AND p.expires_at > COALESCE(p.published_at, p.created_at) + interval '300 days'
+             THEN 'year' ELSE 'month'
+           END
+         ) AS listing_term
+       FROM properties p
+       WHERE p.id = $1 AND p.owner_id = $2`,
+      [propertyId, userId]
+    );
+    const row = current.rows[0] as { status: string; expires_at: string | null; is_premium: boolean; listing_term: string } | undefined;
+    if (!row) throw new HttpError(404, "Property not found");
+    const live = row.status === "published" && (!row.expires_at || new Date(row.expires_at).getTime() > Date.now());
+    const savedBadge: ListingBadge = row.is_premium ? "premium" : "standard";
+    const savedTerm: ListingTerm = row.listing_term === "year" ? "year" : "month";
+    const fee = await upgradeCharge(plan, listingTerm, live ? savedBadge : null, live ? savedTerm : null);
+    const expiryMode = !live
+      ? (listingTerm === "year" ? "fresh_year" : "fresh_month")
+      : (listingTerm === "year" && savedTerm === "month" ? "extend_year" : "keep");
     await ensureWallet(client, userId);
     const locked = await client.query(`SELECT balance FROM wallets WHERE user_id = $1 FOR UPDATE`, [userId]);
     const balance = Number(locked.rows[0]?.balance ?? 0);
     if (balance < fee) {
       throw new HttpError(402, `Wallet balance is ₹${balance}. Add ₹${fee - balance} to publish this listing.`);
     }
-    await client.query(`UPDATE wallets SET balance = balance - $2, updated_at = now() WHERE user_id = $1`, [userId, fee]);
-    await client.query(
-      `INSERT INTO wallet_transactions (user_id, amount, direction, reason, property_id)
-       VALUES ($1, $2, 'debit', $3, $4)`,
-      [userId, fee, listingTerm === "year" ? "listing_year" : "listing_month", propertyId]
-    );
-    await client.query("SET LOCAL session_replication_role = replica");
+    if (fee > 0) {
+      await client.query(`UPDATE wallets SET balance = balance - $2, updated_at = now() WHERE user_id = $1`, [userId, fee]);
+      await client.query(
+        `INSERT INTO wallet_transactions (user_id, amount, direction, reason, property_id)
+         VALUES ($1, $2, 'debit', $3, $4)`,
+        [userId, fee, listingTerm === "year" ? "listing_year" : "listing_month", propertyId]
+      );
+    }
     const property = await client.query(
       `UPDATE properties
        SET status = 'published',
-           expires_at = now() + CASE WHEN $2 = 'year' THEN interval '1 year' ELSE interval '1 month' END,
-           published_at = now(),
+           expires_at = CASE $2
+             WHEN 'extend_year' THEN GREATEST(expires_at, now()) + interval '11 months'
+             WHEN 'keep' THEN GREATEST(COALESCE(expires_at, now()), now())
+             WHEN 'fresh_year' THEN now() + interval '1 year'
+             ELSE now() + interval '1 month'
+           END,
+           published_at = COALESCE(published_at, now()),
            is_premium = $3,
-           is_featured = false
+           is_featured = false,
+           verification_status = 'active'
        WHERE id = $1 AND owner_id = $4
-       RETURNING id, expires_at`,
-      [propertyId, listingTerm, plan === "premium", userId]
+       RETURNING id, expires_at, is_premium, verification_status`,
+      [propertyId, expiryMode, plan === "premium", userId]
     );
-    if (!property.rows[0]) throw new HttpError(404, "Property not found");
-    await client.query(`DELETE FROM property_features WHERE property_id = $1 AND feature_key = 'listing_badge'`, [propertyId]);
+    const saved = property.rows[0] as { id: string; expires_at: string; is_premium: boolean; verification_status: string } | undefined;
+    if (!saved) throw new HttpError(404, "Property not found");
+    if (plan === "premium" && saved.is_premium !== true) {
+      throw new HttpError(500, "Premium could not be saved on this listing");
+    }
+    if (saved.verification_status !== "active") {
+      throw new HttpError(500, "Listing could not be activated");
+    }
+    await client.query(
+      `DELETE FROM property_features WHERE property_id = $1 AND feature_key IN ('listing_badge', 'listing_term')`,
+      [propertyId]
+    );
     if (plan === "premium") {
       await client.query(
         `INSERT INTO property_features (property_id, feature_key, feature_value) VALUES ($1, 'listing_badge', 'Premium')`,
         [propertyId]
       );
     }
+    await client.query(
+      `INSERT INTO property_features (property_id, feature_key, feature_value) VALUES ($1, 'listing_term', $2)`,
+      [propertyId, listingTerm]
+    );
     const wallet = await client.query(`SELECT balance FROM wallets WHERE user_id = $1`, [userId]);
     await client.query("COMMIT");
     return {
       ok: true,
       balance: Number(wallet.rows[0]?.balance ?? 0),
       charged: fee,
-      expires_at: property.rows[0].expires_at,
+      expires_at: saved.expires_at,
     };
   } catch (error) {
     try {

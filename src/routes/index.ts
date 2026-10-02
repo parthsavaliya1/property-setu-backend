@@ -36,6 +36,7 @@ apiRouter.post("/wallet/spend", requireUser, WalletController.spend);
 
 apiRouter.get("/me", requireUser, UserController.me);
 apiRouter.patch("/me", requireUser, UserController.update);
+apiRouter.delete("/me", requireUser, UserController.remove);
 
 apiRouter.post("/properties/:id/favorite", requireUser, EngagementController.favorite);
 apiRouter.delete("/properties/:id/favorite", requireUser, EngagementController.unfavorite);
@@ -51,11 +52,15 @@ apiRouter.get("/saved-searches", requireUser, EngagementController.savedSearches
 apiRouter.post("/saved-searches", requireUser, EngagementController.createSavedSearch);
 apiRouter.delete("/saved-searches/:id", requireUser, EngagementController.deleteSavedSearch);
 apiRouter.get("/notifications", requireUser, EngagementController.notifications);
+apiRouter.patch("/notifications/read", requireUser, EngagementController.readNotifications);
 apiRouter.patch("/notifications/:id/read", requireUser, EngagementController.readNotification);
 apiRouter.get("/chats", requireUser, EngagementController.chats);
 apiRouter.post("/properties/:id/chat", requireUser, EngagementController.openChat);
+apiRouter.get("/chats/:id", requireUser, EngagementController.chat);
 apiRouter.get("/chats/:id/messages", requireUser, EngagementController.messages);
 apiRouter.post("/chats/:id/messages", requireUser, EngagementController.sendMessage);
+apiRouter.delete("/chats/:id/messages/:messageId", requireUser, EngagementController.deleteMessage);
+apiRouter.post("/chats/:id/messages/:messageId/reactions", requireUser, EngagementController.reactMessage);
 apiRouter.post("/properties/:id/images", requireUser, EngagementController.addImage);
 apiRouter.delete("/properties/:id/images/:imageId", requireUser, EngagementController.removeImage);
 

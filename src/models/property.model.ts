@@ -19,6 +19,19 @@ const publicColumns = `
       LIMIT 1
     )
   ) AS listing_label,
+  COALESCE(
+    (
+      SELECT pf.feature_value FROM property_features pf
+      WHERE pf.property_id = p.id AND pf.feature_key = 'listing_term'
+      LIMIT 1
+    ),
+    CASE
+      WHEN p.expires_at IS NOT NULL
+        AND p.expires_at > COALESCE(p.published_at, p.created_at) + interval '300 days'
+      THEN 'year'
+      ELSE 'month'
+    END
+  ) AS listing_term,
   c.name AS category_name, c.slug AS category_slug,
   parent.slug AS category_parent_slug,
   l.address, l.address_line_2, l.locality, l.area AS location_area, l.landmark,
@@ -73,6 +86,7 @@ export type PropertyListQuery = {
   radius_km?: number;
   prefer_city?: string;
   city_first?: "true" | "false";
+  listing_tier?: "premium" | "standard";
   limit: number;
   offset: number;
   ownerId?: string;
@@ -178,14 +192,17 @@ export const PropertyModel = {
       ) DESC`;
     }
 
-    const premiumRank = `(
+    const premiumMatch = `(
          p.is_premium OR EXISTS (
            SELECT 1 FROM property_features badge
            WHERE badge.property_id = p.id
              AND badge.feature_key = 'listing_badge'
              AND badge.feature_value = 'Premium'
          )
-       ) DESC`;
+       )`;
+    if (query.listing_tier === "premium") where.push(premiumMatch);
+    if (query.listing_tier === "standard") where.push(`NOT ${premiumMatch}`);
+    const premiumRank = `${premiumMatch} DESC`;
     const rank = (query.city_first === "true"
       ? [cityRank, premiumRank]
       : [premiumRank, cityRank]
@@ -376,13 +393,14 @@ export const PropertyModel = {
         furnishing_status = COALESCE($11, furnishing_status),
         facing = COALESCE($12, facing),
         status = COALESCE($13, status),
-        possession_status = COALESCE($14, possession_status)
+        possession_status = COALESCE($14, possession_status),
+        construction_year = COALESCE($15, construction_year)
       WHERE id = $1`,
       [
         existing.id, body.title ?? null, body.description ?? null, body.listing_type ?? null, body.price ?? null,
         body.is_price_negotiable ?? null, body.area ?? null, body.bedrooms ?? null, body.bathrooms ?? null,
         body.balconies ?? null, body.furnishing_status ?? null, body.facing ?? null, body.status ?? null,
-        body.possession_status ?? null,
+        body.possession_status ?? null, body.construction_year ?? null,
       ]
     );
     if (body.location) {
@@ -446,8 +464,16 @@ export const PropertyModel = {
   async remove(db: Db, idOrSlug: string, hard: boolean) {
     const existing = await this.find(db, idOrSlug, false);
     if (!existing) return null;
-    if (hard) await db.query(`DELETE FROM properties WHERE id = $1`, [existing.id]);
-    else await db.query(`UPDATE properties SET status = 'archived' WHERE id = $1`, [existing.id]);
+    const result = hard
+      ? await db.query(
+          `DELETE FROM properties WHERE id = $1 AND (owner_id = auth.uid() OR public.is_admin())`,
+          [existing.id]
+        )
+      : await db.query(
+          `UPDATE properties SET status = 'archived' WHERE id = $1 AND (owner_id = auth.uid() OR public.is_admin())`,
+          [existing.id]
+        );
+    if (!result.rowCount) return null;
     return { id: existing.id, archived: !hard };
   },
 

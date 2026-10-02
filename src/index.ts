@@ -1,3 +1,4 @@
+import { createServer } from "node:http";
 import cors from "cors";
 import dotenv from "dotenv";
 import express from "express";
@@ -7,6 +8,7 @@ import { apiRouter } from "./routes/index.js";
 import { checkConnection } from "./db.js";
 import { runMigrations } from "./migrate.js";
 import { databaseTarget } from "./pgConfig.js";
+import { attachRealtime } from "./realtime.js";
 
 dotenv.config();
 
@@ -29,7 +31,9 @@ const port = Number(process.env.PORT || 4000);
 
 runMigrations()
   .then(() => {
-    app.listen(port, "0.0.0.0", () => {
+    const httpServer = createServer(app);
+    attachRealtime(httpServer);
+    httpServer.listen(port, "0.0.0.0", () => {
       const target = databaseTarget();
       console.log(`Property API listening on http://0.0.0.0:${port}`);
       checkConnection()

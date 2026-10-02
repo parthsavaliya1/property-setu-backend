@@ -38,6 +38,9 @@ function safeExtFromName(name = "", mime = "") {
     "video/x-matroska": ".mkv",
     "video/3gpp": ".3gp",
     "application/pdf": ".pdf",
+    "application/msword": ".doc",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": ".docx",
+    "text/plain": ".txt",
   };
   return lookup[mime.toLowerCase()] || "";
 }

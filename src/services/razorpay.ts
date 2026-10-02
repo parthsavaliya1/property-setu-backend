@@ -1,15 +1,27 @@
 import crypto from "node:crypto";
 import { HttpError } from "../errors.js";
+import { listingFees } from "./remoteConfig.js";
 
 export type ListingBadge = "standard" | "premium";
 export type ListingTerm = "month" | "year";
 
-const monthlyFee = { standard: 20, premium: 30 } as const;
-
-export function listingFeeRupees(badge: ListingBadge, term: ListingTerm = "month") {
-  const monthly = monthlyFee[badge];
+export async function listingFeeRupees(badge: ListingBadge, term: ListingTerm = "month") {
+  const fees = await listingFees();
+  const monthly = badge === "premium" ? fees.premium : fees.standard;
   if (term === "month") return monthly;
   return Math.round(monthly * 12 * 0.85);
+}
+
+/** Extra to collect when a live listing moves to a higher plan. The current fee is already paid. */
+export async function upgradeCharge(
+  nextBadge: ListingBadge,
+  nextTerm: ListingTerm,
+  currentBadge: ListingBadge | null,
+  currentTerm: ListingTerm | null,
+) {
+  const nextFee = await listingFeeRupees(nextBadge, nextTerm);
+  if (!currentBadge || !currentTerm) return nextFee;
+  return Math.max(0, nextFee - await listingFeeRupees(currentBadge, currentTerm));
 }
 
 export function paymentTypeFor(badge: ListingBadge) {

@@ -4,6 +4,7 @@ import { HttpError } from "../errors.js";
 import { asyncRoute } from "../http.js";
 import { EngagementModel } from "../models/engagement.model.js";
 import { PropertyModel } from "../models/property.model.js";
+import { emitChatDeleted, emitChatMessage, emitChatReaction } from "../realtime.js";
 
 export const EngagementController = {
   favorite: asyncRoute(async (req, res) => {
@@ -17,7 +18,11 @@ export const EngagementController = {
   }),
 
   favorites: asyncRoute(async (req, res) => {
-    const rows = await withDb(req.user!.id, (db) => EngagementModel.favorites(db));
+    const query = z.object({
+      limit: z.coerce.number().int().min(1).max(50).default(20),
+      offset: z.coerce.number().int().min(0).default(0),
+    }).parse(req.query);
+    const rows = await withDb(req.user!.id, (db) => EngagementModel.favorites(db, query.limit, query.offset));
     res.json(rows);
   }),
 
@@ -120,6 +125,11 @@ export const EngagementController = {
     res.json(row);
   }),
 
+  readNotifications: asyncRoute(async (req, res) => {
+    await withDb(req.user!.id, (db) => EngagementModel.markNotificationsRead(db));
+    res.status(204).end();
+  }),
+
   chats: asyncRoute(async (req, res) => {
     const rows = await withDb(req.user!.id, (db) => EngagementModel.chats(db));
     res.json(rows);
@@ -131,15 +141,55 @@ export const EngagementController = {
     res.status(201).json(row);
   }),
 
+  chat: asyncRoute(async (req, res) => {
+    const row = await withDb(req.user!.id, (db) => EngagementModel.chat(db, req.params.id));
+    if (!row) throw new HttpError(404, "Chat not found");
+    res.json(row);
+  }),
+
   messages: asyncRoute(async (req, res) => {
     const rows = await withDb(req.user!.id, (db) => EngagementModel.messages(db, req.params.id));
     res.json(rows);
   }),
 
   sendMessage: asyncRoute(async (req, res) => {
-    const body = z.object({ body: z.string().trim().min(1).max(2000) }).parse(req.body);
-    const row = await withDb(req.user!.id, (db) => EngagementModel.sendMessage(db, req.params.id, body.body));
+    const body = z.object({
+      body: z.string().max(2000).optional(),
+      attachment_url: z.string().url().optional(),
+      attachment_name: z.string().max(200).optional(),
+      attachment_kind: z.enum(["image", "document"]).optional(),
+      reply_to_id: z.string().uuid().optional(),
+    }).parse(req.body);
+    const text = body.body?.trim() ?? "";
+    if (!text && !body.attachment_url) throw new HttpError(400, "Write a message or attach a file.");
+    const row = await withDb(req.user!.id, (db) => EngagementModel.sendMessage(db, req.params.id, {
+      body: text,
+      attachment_url: body.attachment_url,
+      attachment_name: body.attachment_name,
+      attachment_kind: body.attachment_kind,
+      reply_to_id: body.reply_to_id,
+    }));
+    emitChatMessage(String(row.conversation_id), row as Record<string, unknown>);
     res.status(201).json(row);
+  }),
+
+  deleteMessage: asyncRoute(async (req, res) => {
+    const row = await withDb(req.user!.id, (db) => EngagementModel.deleteMessage(db, req.params.id, req.params.messageId));
+    if (!row) throw new HttpError(404, "Message not found");
+    emitChatDeleted(String(row.conversation_id), String(row.id));
+    res.json(row);
+  }),
+
+  reactMessage: asyncRoute(async (req, res) => {
+    const body = z.object({ emoji: z.string().trim().min(1).max(16) }).parse(req.body);
+    const row = await withDb(req.user!.id, (db) => EngagementModel.toggleReaction(db, req.params.id, req.params.messageId, body.emoji));
+    emitChatReaction(req.params.id, {
+      messageId: row.messageId,
+      reactions: row.reactions.map((item: { emoji: string; count: number }) => ({ emoji: item.emoji, count: item.count })),
+      actorId: req.user!.id,
+      emoji: row.myEmoji,
+    });
+    res.json(row);
   }),
 
   addImage: asyncRoute(async (req, res) => {
