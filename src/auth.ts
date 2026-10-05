@@ -4,6 +4,7 @@ import jwt from "jsonwebtoken";
 export type AuthUser = {
   id: string;
   email: string | null;
+  phone?: string | null;
 };
 
 type TokenBody = {

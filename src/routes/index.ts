@@ -11,9 +11,14 @@ import { uploadRouter } from "./uploads.js";
 export const apiRouter = Router();
 
 apiRouter.get("/health", CatalogController.health);
+apiRouter.post("/auth/send-otp", AuthController.sendOtp);
+apiRouter.post("/auth/verify-otp", AuthController.verifyOtp);
 apiRouter.post("/auth/signup", AuthController.signup);
 apiRouter.post("/auth/login", AuthController.login);
+apiRouter.post("/auth/resend-verification", AuthController.resendVerification);
+apiRouter.get("/auth/verify-email", AuthController.verifyEmail);
 apiRouter.post("/auth/google", AuthController.google);
+apiRouter.get("/auth/google/callback", AuthController.googleCallback);
 apiRouter.use("/uploads", uploadRouter);
 apiRouter.get("/categories", optionalUser, CatalogController.categories);
 apiRouter.get("/amenities", optionalUser, CatalogController.amenities);

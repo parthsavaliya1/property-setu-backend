@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { pool, withDb } from "../db.js";
+import { pool, withDb, type Db } from "../db.js";
 import { HttpError } from "../errors.js";
 import { asyncRoute } from "../http.js";
 import { CatalogModel } from "../models/catalog.model.js";
@@ -101,8 +101,9 @@ function userId(req: { user?: { id: string } }) {
 }
 
 export async function expireDueListings() {
-  const client = await pool.connect();
+  let client: Db | null = null;
   try {
+    client = await pool.connect();
     await client.query("BEGIN");
     await client.query(
       `UPDATE properties
@@ -117,13 +118,13 @@ export async function expireDueListings() {
     await client.query("COMMIT");
   } catch (error) {
     try {
-      await client.query("ROLLBACK");
+      await client?.query("ROLLBACK");
     } catch {
       /* list can still run if expiry could not be saved */
     }
-    console.error(error instanceof Error ? error.message : "Could not expire listings");
+    console.error(error instanceof Error && error.message ? error.message : "Could not expire listings");
   } finally {
-    client.release();
+    client?.release();
   }
 }
 

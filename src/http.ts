@@ -49,6 +49,20 @@ export function errorHandler(error: unknown, _req: Request, res: Response, _next
     return;
   }
 
+  if (isConnectionTimeout(error)) {
+    console.error("Database connection timed out");
+    res.status(503).json({ error: "Could not reach the database. Try again." });
+    return;
+  }
+
   console.error(error);
   res.status(500).json({ error: "Something went wrong" });
+}
+
+function isConnectionTimeout(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const code = (error as { code?: string }).code;
+  if (code === "ETIMEDOUT" || code === "ECONNREFUSED" || code === "ENETUNREACH") return true;
+  const nested = (error as { errors?: unknown[] }).errors;
+  return Array.isArray(nested) && nested.some((item) => isConnectionTimeout(item));
 }

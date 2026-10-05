@@ -1,12 +1,23 @@
 import dotenv from "dotenv";
+import { setDefaultAutoSelectFamilyAttemptTimeout } from "node:net";
 import pg from "pg";
 import { pgConfig } from "./pgConfig.js";
 
 dotenv.config();
 
+// Node gives each database address only a fraction of a second. The Supabase
+// pooler in Tokyo needs longer from here, or every new connection times out.
+setDefaultAutoSelectFamilyAttemptTimeout(2000);
+
 const { Pool } = pg;
 
-export const pool = new Pool({ ...pgConfig(), max: 10 });
+export const pool = new Pool({
+  ...pgConfig(),
+  max: 10,
+  connectionTimeoutMillis: 20000,
+  idleTimeoutMillis: 20000,
+  keepAlive: true,
+});
 
 export async function checkConnection() {
   const client = await pool.connect();
