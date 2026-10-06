@@ -8,6 +8,7 @@ import { apiRouter } from "./routes/index.js";
 import { checkConnection } from "./db.js";
 import { runMigrations } from "./migrate.js";
 import { databaseTarget } from "./pgConfig.js";
+import { privacyHtml } from "./privacyPage.js";
 import { attachRealtime } from "./realtime.js";
 
 dotenv.config();
@@ -24,6 +25,11 @@ app.use(
   })
 );
 app.use(express.json({ limit: "2mb" }));
+app.get("/privacy", (_req, res) => {
+  res.setHeader("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'");
+  res.setHeader("Cache-Control", "public, max-age=3600");
+  res.type("html").send(privacyHtml);
+});
 app.use("/api", apiRouter);
 app.use(errorHandler);
 
