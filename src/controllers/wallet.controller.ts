@@ -41,7 +41,9 @@ export const WalletController = {
   }),
 
   order: asyncRoute(async (req, res) => {
-    const body = z.object({ amount: z.coerce.number().int().min(1).max(100000) }).parse(req.body);
+    const body = z.object({
+      amount: z.coerce.number().min(1).max(100000).transform((value) => Math.round(value)),
+    }).parse(req.body);
     const receipt = `w${req.user!.id.replace(/-/g, "").slice(0, 12)}${Date.now().toString(36)}`.slice(0, 40);
     const order = await createRazorpayOrder(body.amount, receipt, {
       user_id: req.user!.id,

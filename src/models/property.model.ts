@@ -445,6 +445,58 @@ export const PropertyModel = {
         [existing.id, document.document_type, document.document_url]
       );
     }
+    if (body.features) {
+      await db.query(
+        `DELETE FROM property_features
+         WHERE property_id = $1 AND feature_key NOT IN ('listing_badge', 'listing_term')`,
+        [existing.id]
+      );
+      for (const feature of body.features) {
+        if (feature.feature_key === "listing_badge" || feature.feature_key === "listing_term") continue;
+        await db.query(
+          `INSERT INTO property_features (property_id, feature_key, feature_value)
+           VALUES ($1, $2, $3)
+           ON CONFLICT (property_id, feature_key) DO UPDATE SET feature_value = EXCLUDED.feature_value`,
+          [existing.id, feature.feature_key, feature.feature_value ?? null]
+        );
+      }
+    }
+    if (body.pricing) {
+      const priced = await db.query(
+        `UPDATE property_prices
+         SET price = $2,
+             price_type = $3,
+             maintenance_charge = $4,
+             security_deposit = $5,
+             negotiable = $6
+         WHERE id = (
+           SELECT id FROM property_prices WHERE property_id = $1 ORDER BY created_at DESC LIMIT 1
+         )`,
+        [
+          existing.id,
+          body.pricing.price,
+          body.pricing.price_type ?? null,
+          body.pricing.maintenance_charge ?? null,
+          body.pricing.security_deposit ?? null,
+          body.pricing.negotiable ?? false,
+        ]
+      );
+      if (!priced.rowCount) {
+        await db.query(
+          `INSERT INTO property_prices (
+            property_id, price, price_type, maintenance_charge, security_deposit, negotiable
+          ) VALUES ($1,$2,$3,$4,$5,$6)`,
+          [
+            existing.id,
+            body.pricing.price,
+            body.pricing.price_type ?? null,
+            body.pricing.maintenance_charge ?? null,
+            body.pricing.security_deposit ?? null,
+            body.pricing.negotiable ?? false,
+          ]
+        );
+      }
+    }
     if (body.listing_badge === "standard") {
       await db.query(
         `DELETE FROM property_features WHERE property_id = $1 AND feature_key = 'listing_badge'`,

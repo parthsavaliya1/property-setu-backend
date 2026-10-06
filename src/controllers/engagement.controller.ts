@@ -52,7 +52,7 @@ export const EngagementController = {
 
   createVisit: asyncRoute(async (req, res) => {
     const body = z.object({
-      scheduled_at: z.string().datetime(),
+      scheduled_at: z.string().refine((value) => !Number.isNaN(Date.parse(value)), "Choose a valid date and time"),
       notes: z.string().max(1000).optional(),
     }).parse(req.body);
     const row = await withDb(req.user!.id, (db) => EngagementModel.createVisit(db, req.params.id, body));
@@ -67,7 +67,7 @@ export const EngagementController = {
   updateVisit: asyncRoute(async (req, res) => {
     const body = z.object({
       status: z.enum(["requested", "confirmed", "completed", "cancelled", "rescheduled"]),
-      scheduled_at: z.string().datetime().optional(),
+      scheduled_at: z.string().refine((value) => !Number.isNaN(Date.parse(value)), "Choose a valid date and time").optional(),
       notes: z.string().max(1000).optional(),
     }).parse(req.body);
     const row = await withDb(req.user!.id, (db) => EngagementModel.updateVisit(db, req.params.id, body));

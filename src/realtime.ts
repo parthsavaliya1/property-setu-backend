@@ -5,14 +5,23 @@ import { withDb } from "./db.js";
 
 let io: Server | null = null;
 
-function origins() {
-  const configured = process.env.CORS_ORIGIN?.split(",").map((value) => value.trim()).filter(Boolean);
-  return configured?.length ? configured : true;
+function allowOrigin(origin: string | undefined, callback: (error: Error | null, allowed?: boolean) => void) {
+  if (!origin) {
+    callback(null, true);
+    return;
+  }
+  const configured = process.env.CORS_ORIGIN?.split(",").map((value) => value.trim()).filter(Boolean) ?? [];
+  if (!configured.length || configured.includes("*") || configured.includes(origin)) {
+    callback(null, true);
+    return;
+  }
+  callback(null, false);
 }
 
 export function attachRealtime(httpServer: HttpServer) {
   io = new Server(httpServer, {
-    cors: { origin: origins() },
+    path: "/api/socket.io",
+    cors: { origin: allowOrigin },
   });
 
   io.use(async (socket, next) => {
