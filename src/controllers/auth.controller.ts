@@ -217,24 +217,33 @@ export const AuthController = {
   }),
 
   login: asyncRoute(async (req, res) => {
-    const body = credentials.omit({ full_name: true }).parse(req.body);
-    const email = emailOf(body.email);
+    const body = z.object({
+      email: z.string().trim().email().max(160).optional(),
+      phone: z.string().trim().regex(/^\d{10}$/, "Valid 10-digit phone number required").optional(),
+      password: z.string().min(6).max(72),
+    }).refine((value) => Boolean(value.email || value.phone), { message: "Mobile number or email is required" }).parse(req.body);
     const result = await pool.query<{
       id: string;
-      email: string;
+      email: string | null;
+      phone: string | null;
       password_hash: string;
       password_set: boolean;
       email_verified: boolean;
     }>(
-      `SELECT id, email, password_hash, password_set, email_verified FROM public.accounts WHERE lower(email) = $1`,
-      [email]
+      `SELECT id, email, phone, password_hash, password_set, email_verified
+       FROM public.accounts
+       WHERE ($1::text IS NOT NULL AND (phone = $1 OR phone = '+91' || $1 OR email = $1))
+          OR ($2::text IS NOT NULL AND lower(email) = $2)
+       ORDER BY CASE WHEN phone = $1 THEN 0 ELSE 1 END
+       LIMIT 1`,
+      [body.phone ?? null, body.email ? emailOf(body.email) : null]
     );
     const account = result.rows[0];
-    if (account && !account.password_set) {
+    if (account && !account.password_set && !body.phone) {
       throw new HttpError(401, "This email uses Google. Continue with Google.");
     }
     let matches = false;
-    if (account) {
+    if (account?.password_set) {
       try {
         matches = await bcrypt.compare(body.password, account.password_hash);
       } catch {
@@ -242,13 +251,14 @@ export const AuthController = {
       }
     }
     if (!account || !matches) {
-      res.status(401).json({ error: "Email or password is incorrect" });
+      res.status(401).json({ error: body.phone ? "Mobile number or password is incorrect" : "Email or password is incorrect" });
       return;
     }
-    if (!account.email_verified) {
+    const emailLogin = Boolean(body.email) && account.email?.includes("@");
+    if (emailLogin && !account.email_verified) {
       throw new HttpError(403, "Verify your email before you log in. Open the link we sent you.", "email_not_verified");
     }
-    const user = { id: account.id, email: account.email };
+    const user = { id: account.id, email: account.email, phone: account.phone };
     res.json({ token: signToken(user), user });
   }),
 

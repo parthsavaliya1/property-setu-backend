@@ -1,21 +1,13 @@
 import type { Server as HttpServer } from "node:http";
 import { Server } from "socket.io";
 import { verifyAccessToken } from "./auth.js";
+import { isAllowedBrowserOrigin } from "./corsOrigin.js";
 import { withDb } from "./db.js";
 
 let io: Server | null = null;
 
 function allowOrigin(origin: string | undefined, callback: (error: Error | null, allowed?: boolean) => void) {
-  if (!origin) {
-    callback(null, true);
-    return;
-  }
-  const configured = process.env.CORS_ORIGIN?.split(",").map((value) => value.trim()).filter(Boolean) ?? [];
-  if (!configured.length || configured.includes("*") || configured.includes(origin)) {
-    callback(null, true);
-    return;
-  }
-  callback(null, false);
+  callback(null, isAllowedBrowserOrigin(origin));
 }
 
 export function attachRealtime(httpServer: HttpServer) {

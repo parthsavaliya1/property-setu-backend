@@ -24,6 +24,12 @@ const messageSelect = `
   LEFT JOIN chat_messages r ON r.id = m.reply_to_id
 `;
 
+function assertOpen(property: { status?: string }) {
+  if (property.status === "sold" || property.status === "rented") {
+    throw new HttpError(409, "This property is no longer available");
+  }
+}
+
 const reactionSelect = `
   SELECT message_id, emoji, count(*)::int AS count, bool_or(user_id = auth.uid()) AS mine
   FROM chat_message_reactions
@@ -82,6 +88,7 @@ export const EngagementModel = {
   async createInquiry(db: Db, propertyId: string, input: { name?: string; phone?: string; email?: string; message?: string; inquiry_type: string }) {
     const property = await PropertyModel.find(db, propertyId, false);
     if (!property) throw new HttpError(404, "Property not found");
+    assertOpen(property);
     const result = await db.query(
       `INSERT INTO property_inquiries (property_id, buyer_id, name, phone, email, message, inquiry_type)
        VALUES ($1, auth.uid(), $2, $3, $4, $5, $6)
@@ -110,6 +117,7 @@ export const EngagementModel = {
   async createVisit(db: Db, propertyId: string, input: { scheduled_at: string; notes?: string }) {
     const property = await PropertyModel.find(db, propertyId, false);
     if (!property) throw new HttpError(404, "Property not found");
+    assertOpen(property);
     const result = await db.query(
       `INSERT INTO property_visits (property_id, buyer_id, scheduled_at, notes)
        VALUES ($1, auth.uid(), $2, $3) RETURNING *`,
@@ -227,6 +235,7 @@ export const EngagementModel = {
   async openChat(db: Db, propertyId: string, buyerId?: string) {
     const property = await PropertyModel.find(db, propertyId, false);
     if (!property) throw new HttpError(404, "Property not found");
+    const closed = property.status === "sold" || property.status === "rented";
     if (buyerId) {
       const matched = await db.query(
         `SELECT * FROM conversations
@@ -235,6 +244,7 @@ export const EngagementModel = {
         [property.id, buyerId]
       );
       if (matched.rows[0]) return matched.rows[0];
+      if (closed) throw new HttpError(409, "This property is no longer available");
       const createdForBuyer = await db.query(
         `INSERT INTO conversations (property_id, buyer_id, owner_id)
          SELECT $1, $2, p.owner_id
@@ -251,6 +261,7 @@ export const EngagementModel = {
       [property.id]
     );
     if (existing.rows[0]) return existing.rows[0];
+    if (closed) throw new HttpError(409, "This property is no longer available");
     const created = await db.query(
       `INSERT INTO conversations (property_id, buyer_id, owner_id)
        SELECT $1, auth.uid(), p.owner_id

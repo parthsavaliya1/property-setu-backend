@@ -24,7 +24,7 @@ export const AdminModel = {
        LEFT JOIN property_locations l ON l.property_id = p.id
        LEFT JOIN user_profiles pr ON pr.id = p.owner_id
        ORDER BY p.created_at DESC
-       LIMIT 100`
+       LIMIT 500`
     );
     return result.rows;
   },
@@ -49,7 +49,7 @@ export const AdminModel = {
        FROM property_reports r
        JOIN properties p ON p.id = r.property_id
        ORDER BY r.created_at DESC
-       LIMIT 100`
+       LIMIT 500`
     );
     return result.rows;
   },
@@ -74,5 +74,39 @@ export const AdminModel = {
       [id, verificationStatus]
     );
     return result.rows[0] ?? null;
+  },
+
+  async users(db: Db) {
+    const result = await db.query(
+      `SELECT p.id, p.full_name, p.email, p.phone, p.city, p.district, p.state,
+              p.is_verified, p.created_at,
+              coalesce(w.balance, 0) AS wallet_balance,
+              (SELECT count(*)::int FROM properties pr WHERE pr.owner_id = p.id) AS listings,
+              coalesce((
+                SELECT string_agg(ur.role, ', ' ORDER BY ur.role)
+                FROM user_roles ur
+                WHERE ur.user_id = p.id
+              ), '') AS roles
+       FROM user_profiles p
+       LEFT JOIN wallets w ON w.user_id = p.id
+       ORDER BY p.created_at DESC
+       LIMIT 500`
+    );
+    return result.rows;
+  },
+
+  async payments(db: Db) {
+    const result = await db.query(
+      `SELECT pay.id, pay.amount, pay.currency, pay.payment_type, pay.provider,
+              pay.transaction_id, pay.status, pay.paid_at, pay.created_at,
+              pr.full_name AS user_name, pr.email AS user_email, pr.phone AS user_phone,
+              p.title AS property_title
+       FROM payments pay
+       LEFT JOIN user_profiles pr ON pr.id = pay.user_id
+       LEFT JOIN properties p ON p.id = pay.property_id
+       ORDER BY pay.created_at DESC
+       LIMIT 500`
+    );
+    return result.rows;
   },
 };

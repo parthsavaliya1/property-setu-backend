@@ -10,18 +10,21 @@ import { runMigrations } from "./migrate.js";
 import { databaseTarget } from "./pgConfig.js";
 import { privacyHtml } from "./privacyPage.js";
 import { attachRealtime } from "./realtime.js";
+import { isAllowedBrowserOrigin } from "./corsOrigin.js";
 
 dotenv.config();
 
 const app = express();
-app.use(helmet());
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+  })
+);
 app.use(
   cors({
-    origin: process.env.CORS_ORIGIN?.split(",").map((value) => value.trim()) || [
-      "http://localhost:5173",
-      "http://localhost:8081",
-      "http://localhost:19006",
-    ],
+    origin(origin, callback) {
+      callback(null, isAllowedBrowserOrigin(origin));
+    },
   })
 );
 app.use(express.json({ limit: "2mb" }));

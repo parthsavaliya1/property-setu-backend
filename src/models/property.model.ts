@@ -152,7 +152,10 @@ export const PropertyModel = {
     };
 
     if (query.mine === "true" && query.ownerId) add("p.owner_id = ?", query.ownerId);
-    else where.push("p.status = 'published' AND (p.expires_at IS NULL OR p.expires_at > now())");
+    else where.push(`(
+      (p.status = 'published' AND (p.expires_at IS NULL OR p.expires_at > now()))
+      OR p.status IN ('sold', 'rented')
+    )`);
     if (query.status) add("p.status = ?", query.status);
     if (query.listing_type) add("p.listing_type = ?", query.listing_type);
     if (query.city) add("l.city ILIKE ?", likeTerm(query.city));
@@ -203,9 +206,10 @@ export const PropertyModel = {
     if (query.listing_tier === "premium") where.push(premiumMatch);
     if (query.listing_tier === "standard") where.push(`NOT ${premiumMatch}`);
     const premiumRank = `${premiumMatch} DESC`;
+    const availableRank = `CASE WHEN p.status = 'published' THEN 0 ELSE 1 END`;
     const rank = (query.city_first === "true"
-      ? [cityRank, premiumRank]
-      : [premiumRank, cityRank]
+      ? [availableRank, cityRank, premiumRank]
+      : [availableRank, premiumRank, cityRank]
     ).filter(Boolean).join(", ");
     params.push(query.limit, query.offset);
     const result = await db.query(

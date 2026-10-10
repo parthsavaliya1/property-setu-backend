@@ -208,11 +208,20 @@ export const PropertyController = {
       const photos = body.images.filter((image) => image.image_type !== "video");
       if (photos.length < 2) throw new HttpError(400, "Add at least 2 photos.");
     }
-    if (body.status === "published") {
+    if (body.status === "published" || body.status === "sold" || body.status === "rented") {
       const current = await withDb(req.user!.id, (db) => PropertyModel.find(db, req.params.id, false));
-      const expires = current?.expires_at ? new Date(current.expires_at).getTime() : null;
-      const live = current?.status === "published" && (expires == null || expires > Date.now());
-      if (!live) delete body.status;
+      if (!current || current.owner_id !== req.user!.id) throw new HttpError(404, "Property not found");
+      const expires = current.expires_at ? new Date(current.expires_at).getTime() : null;
+      const stillPaid = expires == null || expires > Date.now();
+      if (body.status === "published") {
+        const live = current.status === "published" && stillPaid;
+        const reopen = (current.status === "sold" || current.status === "rented") && stillPaid;
+        if (!live && !reopen) delete body.status;
+      } else {
+        if (current.status !== "published") throw new HttpError(400, "Only a live listing can be marked sold or rented");
+        const expected = current.listing_type === "sale" ? "sold" : "rented";
+        if (body.status !== expected) throw new HttpError(400, "This listing cannot use that status");
+      }
     }
     const updated = await withDb(req.user!.id, (db) => PropertyModel.update(db, req.params.id, body));
     if (!updated) throw new HttpError(404, "Property not found");

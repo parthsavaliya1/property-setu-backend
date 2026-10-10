@@ -36,6 +36,18 @@ export const AdminController = {
     res.json(row);
   }),
 
+  users: asyncRoute(async (req, res) => {
+    await assertAdmin(req.user!.id);
+    const rows = await withDb(req.user!.id, (db) => AdminModel.users(db));
+    res.json(rows);
+  }),
+
+  payments: asyncRoute(async (req, res) => {
+    await assertAdmin(req.user!.id);
+    const rows = await withDb(req.user!.id, (db) => AdminModel.payments(db));
+    res.json(rows);
+  }),
+
   reports: asyncRoute(async (req, res) => {
     await assertAdmin(req.user!.id);
     const rows = await withDb(req.user!.id, (db) => AdminModel.reports(db));

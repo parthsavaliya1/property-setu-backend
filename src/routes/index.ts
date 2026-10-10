@@ -2,6 +2,7 @@ import { Router } from "express";
 import { optionalUser, requireUser } from "../auth.js";
 import { AdminController } from "../controllers/admin.controller.js";
 import { EngagementController } from "../controllers/engagement.controller.js";
+import { ExtractController, receivePoster } from "../controllers/extract.controller.js";
 import { CatalogController, PropertyController, UserController } from "../controllers/property.controller.js";
 import { AuthController } from "../controllers/auth.controller.js";
 import { PaymentController } from "../controllers/payment.controller.js";
@@ -24,6 +25,7 @@ apiRouter.get("/categories", optionalUser, CatalogController.categories);
 apiRouter.get("/amenities", optionalUser, CatalogController.amenities);
 apiRouter.get("/plans", optionalUser, CatalogController.plans);
 
+apiRouter.post("/properties/extract-from-image", requireUser, receivePoster, ExtractController.fromImage);
 apiRouter.get("/properties", optionalUser, PropertyController.list);
 apiRouter.get("/properties/:id", optionalUser, PropertyController.show);
 apiRouter.post("/properties", requireUser, PropertyController.create);
@@ -70,6 +72,8 @@ apiRouter.post("/properties/:id/images", requireUser, EngagementController.addIm
 apiRouter.delete("/properties/:id/images/:imageId", requireUser, EngagementController.removeImage);
 
 apiRouter.get("/admin/stats", requireUser, AdminController.stats);
+apiRouter.get("/admin/users", requireUser, AdminController.users);
+apiRouter.get("/admin/payments", requireUser, AdminController.payments);
 apiRouter.get("/admin/properties", requireUser, AdminController.properties);
 apiRouter.patch("/admin/properties/:id", requireUser, AdminController.updateProperty);
 apiRouter.get("/admin/reports", requireUser, AdminController.reports);
