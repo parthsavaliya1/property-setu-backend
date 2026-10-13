@@ -3,7 +3,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 import express from "express";
 import helmet from "helmet";
-import { errorHandler } from "./http.js";
+import { errorHandler, requestLog } from "./http.js";
 import { apiRouter } from "./routes/index.js";
 import { checkConnection } from "./db.js";
 import { runMigrations } from "./migrate.js";
@@ -28,6 +28,7 @@ app.use(
   })
 );
 app.use(express.json({ limit: "2mb" }));
+app.use(requestLog);
 app.get("/privacy", (_req, res) => {
   res.setHeader("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'");
   res.setHeader("Cache-Control", "public, max-age=3600");

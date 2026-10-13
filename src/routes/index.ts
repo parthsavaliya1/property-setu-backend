@@ -7,6 +7,7 @@ import { CatalogController, PropertyController, UserController } from "../contro
 import { AuthController } from "../controllers/auth.controller.js";
 import { PaymentController } from "../controllers/payment.controller.js";
 import { WalletController } from "../controllers/wallet.controller.js";
+import { BannerController, receiveBanner } from "../controllers/banner.controller.js";
 import { uploadRouter } from "./uploads.js";
 
 export const apiRouter = Router();
@@ -21,6 +22,7 @@ apiRouter.get("/auth/verify-email", AuthController.verifyEmail);
 apiRouter.post("/auth/google", AuthController.google);
 apiRouter.get("/auth/google/callback", AuthController.googleCallback);
 apiRouter.use("/uploads", uploadRouter);
+apiRouter.get("/banners", BannerController.list);
 apiRouter.get("/categories", optionalUser, CatalogController.categories);
 apiRouter.get("/amenities", optionalUser, CatalogController.amenities);
 apiRouter.get("/plans", optionalUser, CatalogController.plans);
@@ -76,6 +78,10 @@ apiRouter.get("/admin/users", requireUser, AdminController.users);
 apiRouter.get("/admin/payments", requireUser, AdminController.payments);
 apiRouter.get("/admin/properties", requireUser, AdminController.properties);
 apiRouter.patch("/admin/properties/:id", requireUser, AdminController.updateProperty);
+apiRouter.get("/admin/banners", requireUser, BannerController.adminList);
+apiRouter.post("/admin/banners", requireUser, receiveBanner, BannerController.create);
+apiRouter.patch("/admin/banners/:id", requireUser, BannerController.update);
+apiRouter.delete("/admin/banners/:id", requireUser, BannerController.remove);
 apiRouter.get("/admin/reports", requireUser, AdminController.reports);
 apiRouter.patch("/admin/reports/:id", requireUser, AdminController.updateReport);
 apiRouter.patch("/admin/documents/:id", requireUser, AdminController.updateDocument);
