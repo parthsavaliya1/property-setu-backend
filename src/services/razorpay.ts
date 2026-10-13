@@ -1,15 +1,15 @@
 import crypto from "node:crypto";
 import { HttpError } from "../errors.js";
-import { listingFees } from "./remoteConfig.js";
+import { listingSettings } from "./appSettings.js";
 
 export type ListingBadge = "standard" | "premium";
 export type ListingTerm = "month" | "year";
 
 export async function listingFeeRupees(badge: ListingBadge, term: ListingTerm = "month") {
-  const fees = await listingFees();
-  const monthly = badge === "premium" ? fees.premium : fees.standard;
+  const fees = await listingSettings();
+  const monthly = badge === "premium" ? fees.premiumPrice : fees.standardPrice;
   if (term === "month") return monthly;
-  return Math.round(monthly * 12 * 0.85);
+  return Math.round((monthly * 12 * (100 - fees.yearlyDiscountPercent)) / 100);
 }
 
 /** Extra to collect when a live listing moves to a higher plan. The current fee is already paid. */

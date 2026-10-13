@@ -7,7 +7,7 @@ import { pool } from "../db.js";
 import { HttpError } from "../errors.js";
 import { asyncRoute } from "../http.js";
 import { verifyGoogleCode } from "../services/googleAuth.js";
-import { checkOtp, isPlayReviewPhone, sendOtp } from "../services/otp.js";
+import { checkOtp, findActiveDemo, isPlayReviewPhone, sendOtp } from "../services/otp.js";
 import { sendVerificationEmail, verificationPage } from "../services/resend.js";
 
 const credentials = z.object({
@@ -329,11 +329,17 @@ export const AuthController = {
     if (body.create && existing.rows[0]) {
       throw new HttpError(409, "This number already has an account. Log in.", "account_exists");
     }
-    if (!body.create && !existing.rows[0] && !isPlayReviewPhone(body.phone)) {
+    const demo = await findActiveDemo(body.phone);
+    const fixedLogin = Boolean(demo) || isPlayReviewPhone(body.phone);
+    if (!body.create && !existing.rows[0] && !fixedLogin) {
       throw new HttpError(404, "No account for this number. Create an account.", "account_not_found");
     }
     const sessionId = await sendOtp(body.phone);
-    res.json({ message: "OTP sent successfully", sessionId });
+    res.json({
+      message: fixedLogin ? "Enter the demo OTP. No SMS was sent." : "OTP sent successfully",
+      sessionId,
+      demo: fixedLogin,
+    });
   }),
 
   verifyOtp: asyncRoute(async (req, res) => {
@@ -344,7 +350,8 @@ export const AuthController = {
       create: z.boolean(),
       full_name: z.string().trim().min(2).max(80).optional(),
     }).parse(req.body);
-    const reviewName = isPlayReviewPhone(body.phone) ? "Play Reviewer" : "";
+    const demo = await findActiveDemo(body.phone);
+    const reviewName = isPlayReviewPhone(body.phone) ? "Play Reviewer" : (demo?.full_name || "");
     if (body.create && !body.full_name && !reviewName) {
       throw new HttpError(400, "Enter your name to create the account.", "name_required");
     }

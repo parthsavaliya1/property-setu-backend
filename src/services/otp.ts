@@ -1,4 +1,5 @@
 import { randomInt, randomUUID } from "node:crypto";
+import { pool } from "../db.js";
 import { HttpError } from "../errors.js";
 
 /** Play Console demo login. No SMS is sent. */
@@ -38,12 +39,30 @@ export function isPlayReviewPhone(phone: string) {
   return phone === PLAY_REVIEW_PHONE;
 }
 
-export async function sendOtp(phone: string) {
-  if (isPlayReviewPhone(phone)) {
-    const sessionId = randomUUID();
-    voiceOtpStore.set(sessionId, { otp: PLAY_REVIEW_OTP, phone, createdAt: Date.now() });
-    return sessionId;
+/** Active demo logins skip SMS. The OTP is the one saved in admin settings. */
+export async function findActiveDemo(phone: string) {
+  try {
+    const result = await pool.query<{ otp: string; full_name: string }>(
+      `SELECT otp, full_name FROM public.demo_users WHERE phone = $1 AND active = true LIMIT 1`,
+      [phone]
+    );
+    return result.rows[0] ?? null;
+  } catch (error) {
+    if ((error as { code?: string }).code === "42P01") return null;
+    throw error;
   }
+}
+
+function rememberFixedOtp(phone: string, otp: string) {
+  const sessionId = randomUUID();
+  voiceOtpStore.set(sessionId, { otp, phone, createdAt: Date.now() });
+  return sessionId;
+}
+
+export async function sendOtp(phone: string) {
+  const demo = await findActiveDemo(phone);
+  if (demo) return rememberFixedOtp(phone, demo.otp);
+  if (isPlayReviewPhone(phone)) return rememberFixedOtp(phone, PLAY_REVIEW_OTP);
 
   const channel = (process.env.OTP_CHANNEL || "sms").toLowerCase();
   if (channel === "voice") {
@@ -66,9 +85,11 @@ export async function sendOtp(phone: string) {
 }
 
 export async function checkOtp(phone: string, otp: string, sessionId: string) {
-  if (isPlayReviewPhone(phone)) {
-    if (otp !== PLAY_REVIEW_OTP) throw new HttpError(400, "Invalid or expired OTP", "invalid_otp");
+  const demo = await findActiveDemo(phone);
+  if (demo || isPlayReviewPhone(phone)) {
+    const expected = demo?.otp || PLAY_REVIEW_OTP;
     voiceOtpStore.delete(sessionId);
+    if (otp !== expected) throw new HttpError(400, "Invalid or expired OTP", "invalid_otp");
     return;
   }
 
