@@ -1,10 +1,11 @@
 import { z } from "zod";
-import { withDb } from "../db.js";
+import { pool, withDb } from "../db.js";
 import { HttpError } from "../errors.js";
 import { asyncRoute } from "../http.js";
 import { EngagementModel } from "../models/engagement.model.js";
 import { PropertyModel } from "../models/property.model.js";
 import { emitChatDeleted, emitChatMessage, emitChatReaction } from "../realtime.js";
+import { sendPush } from "../services/push.js";
 
 export const EngagementController = {
   favorite: asyncRoute(async (req, res) => {
@@ -35,6 +36,19 @@ export const EngagementController = {
       inquiry_type: z.enum(["call", "whatsapp", "message", "visit", "price_request"]).default("message"),
     }).parse(req.body);
     const row = await withDb(req.user!.id, (db) => EngagementModel.createInquiry(db, req.params.id, body));
+    const listing = await pool.query<{ owner_id: string; title: string }>(
+      `SELECT owner_id, title FROM properties WHERE id = $1`,
+      [row.property_id]
+    );
+    const ownerId = listing.rows[0]?.owner_id;
+    if (ownerId && ownerId !== req.user!.id) {
+      const title = listing.rows[0]?.title || "your property";
+      void sendPush(ownerId, {
+        title: "New enquiry",
+        body: `Someone asked about ${title}`,
+        data: { kind: "inquiry", propertyId: String(row.property_id) },
+      });
+    }
     res.status(201).json(row);
   }),
 
@@ -56,6 +70,19 @@ export const EngagementController = {
       notes: z.string().max(1000).optional(),
     }).parse(req.body);
     const row = await withDb(req.user!.id, (db) => EngagementModel.createVisit(db, req.params.id, body));
+    const listing = await pool.query<{ owner_id: string; title: string }>(
+      `SELECT owner_id, title FROM properties WHERE id = $1`,
+      [row.property_id]
+    );
+    const ownerId = listing.rows[0]?.owner_id;
+    if (ownerId && ownerId !== req.user!.id) {
+      const title = listing.rows[0]?.title || "your property";
+      void sendPush(ownerId, {
+        title: "Meeting scheduled",
+        body: `Someone scheduled a meeting for ${title}`,
+        data: { kind: "visit", propertyId: String(row.property_id) },
+      });
+    }
     res.status(201).json(row);
   }),
 
@@ -95,8 +122,10 @@ export const EngagementController = {
   createSavedSearch: asyncRoute(async (req, res) => {
     const body = z.object({
       name: z.string().min(1).max(80),
+      q: z.string().max(160).optional(),
       city: z.string().max(120).optional(),
       locality: z.string().max(120).optional(),
+      category_slug: z.string().max(80).optional(),
       category_id: z.string().uuid().optional(),
       listing_type: z.enum(["sale", "rent", "lease", "pg"]).optional(),
       min_price: z.number().nonnegative().optional(),
@@ -170,6 +199,27 @@ export const EngagementController = {
       reply_to_id: body.reply_to_id,
     }));
     emitChatMessage(String(row.conversation_id), row as Record<string, unknown>);
+    const thread = await pool.query<{ buyer_id: string; owner_id: string; property_id: string; title: string }>(
+      `SELECT c.buyer_id, c.owner_id, c.property_id, p.title
+       FROM conversations c
+       JOIN properties p ON p.id = c.property_id
+       WHERE c.id = $1`,
+      [row.conversation_id]
+    );
+    const conversation = thread.rows[0];
+    if (conversation) {
+      const recipient = conversation.buyer_id === req.user!.id ? conversation.owner_id : conversation.buyer_id;
+      const preview = String(row.body || "").trim() || (row.attachment_kind === "document" ? "Shared a document" : "Shared a photo");
+      void sendPush(recipient, {
+        title: "New message",
+        body: `${conversation.title}: ${preview}`.slice(0, 180),
+        data: {
+          kind: "message",
+          propertyId: conversation.property_id,
+          conversationId: String(row.conversation_id),
+        },
+      });
+    }
     res.status(201).json(row);
   }),
 

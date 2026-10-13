@@ -161,19 +161,58 @@ export const EngagementModel = {
   },
 
   async savedSearches(db: Db) {
-    const result = await db.query(`SELECT * FROM saved_searches WHERE user_id = auth.uid() ORDER BY created_at DESC`);
+    const result = await db.query(`SELECT * FROM saved_searches WHERE user_id = auth.uid() ORDER BY updated_at DESC`);
     return result.rows;
   },
 
   async createSavedSearch(db: Db, input: Record<string, string | number | undefined>) {
-    const result = await db.query(
-      `INSERT INTO saved_searches (
-        user_id, name, city, locality, category_id, listing_type, min_price, max_price, min_area, max_area, bedrooms
-      ) VALUES (auth.uid(), $1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
-      [
-        input.name, input.city ?? null, input.locality ?? null, input.category_id ?? null, input.listing_type ?? null,
-        input.min_price ?? null, input.max_price ?? null, input.min_area ?? null, input.max_area ?? null, input.bedrooms ?? null,
-      ]
+    const values = [
+      input.q ?? null,
+      input.city ?? null,
+      input.listing_type ?? null,
+      input.category_slug ?? null,
+      input.min_price ?? null,
+      input.max_price ?? null,
+      input.bedrooms ?? null,
+    ];
+    const existing = await db.query(
+      `SELECT id FROM saved_searches
+       WHERE user_id = auth.uid()
+         AND q IS NOT DISTINCT FROM $1
+         AND city IS NOT DISTINCT FROM $2
+         AND listing_type IS NOT DISTINCT FROM $3
+         AND category_slug IS NOT DISTINCT FROM $4
+         AND min_price IS NOT DISTINCT FROM $5::numeric
+         AND max_price IS NOT DISTINCT FROM $6::numeric
+         AND bedrooms IS NOT DISTINCT FROM $7::int
+       LIMIT 1`,
+      values
+    );
+    const currentId = existing.rows[0]?.id as string | undefined;
+    const result = currentId
+      ? await db.query(
+        `UPDATE saved_searches SET name = $2, updated_at = now() WHERE id = $1 AND user_id = auth.uid() RETURNING *`,
+        [currentId, input.name]
+      )
+      : await db.query(
+        `INSERT INTO saved_searches (
+          user_id, name, city, locality, category_id, listing_type, min_price, max_price, min_area, max_area, bedrooms, q, category_slug
+        ) VALUES (auth.uid(), $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
+        [
+          input.name, input.city ?? null, input.locality ?? null, input.category_id ?? null, input.listing_type ?? null,
+          input.min_price ?? null, input.max_price ?? null, input.min_area ?? null, input.max_area ?? null, input.bedrooms ?? null,
+          input.q ?? null, input.category_slug ?? null,
+        ]
+      );
+    await db.query(
+      `DELETE FROM saved_searches
+       WHERE user_id = auth.uid()
+         AND id IN (
+           SELECT id FROM saved_searches
+           WHERE user_id = auth.uid()
+           ORDER BY updated_at DESC
+           OFFSET 8
+         )`
     );
     return result.rows[0];
   },
@@ -186,7 +225,7 @@ export const EngagementModel = {
     const result = await db.query(
       `SELECT * FROM notifications
        WHERE user_id = auth.uid()
-         AND type IN ('new_inquiry', 'visit_request', 'visit_confirmed')
+         AND type IN ('new_inquiry', 'visit_request', 'visit_confirmed', 'property_view', 'saved_search')
        ORDER BY created_at DESC LIMIT 80`
     );
     return result.rows;
@@ -204,7 +243,7 @@ export const EngagementModel = {
     await db.query(
       `UPDATE notifications SET is_read = true
        WHERE user_id = auth.uid() AND is_read = false
-         AND type IN ('new_inquiry', 'visit_request', 'visit_confirmed')`
+         AND type IN ('new_inquiry', 'visit_request', 'visit_confirmed', 'property_view', 'saved_search')`
     );
   },
 

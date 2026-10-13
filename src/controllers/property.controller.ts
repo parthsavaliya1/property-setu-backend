@@ -6,6 +6,7 @@ import { CatalogModel } from "../models/catalog.model.js";
 import { PropertyModel, type PropertyWrite } from "../models/property.model.js";
 import { UserModel } from "../models/user.model.js";
 import { razorpayConfigured } from "../services/razorpay.js";
+import { savePushToken } from "../services/push.js";
 
 const listingType = z.enum(["sale", "rent", "lease", "pg"]);
 const status = z.enum([
@@ -260,6 +261,27 @@ export const PropertyController = {
     await withDb(userId(req), (db) =>
       PropertyModel.recordView(db, req.params.id, device.device_type ?? "other")
     );
+    if (req.user) {
+      await pool.query(
+        `INSERT INTO notifications (user_id, type, title, message, data)
+         SELECT p.owner_id, 'property_view', 'Property viewed',
+           COALESCE(NULLIF(btrim(viewer.full_name), ''), 'Someone') || ' viewed ' || COALESCE(p.title, 'your property'),
+           jsonb_build_object('property_id', p.id, 'viewer_id', $2::text)
+         FROM properties p
+         LEFT JOIN user_profiles viewer ON viewer.id = $2::uuid
+         WHERE (p.id::text = $1 OR p.slug = $1)
+           AND p.owner_id IS DISTINCT FROM $2::uuid
+           AND NOT EXISTS (
+             SELECT 1 FROM notifications n
+             WHERE n.user_id = p.owner_id
+               AND n.type = 'property_view'
+               AND n.is_read = false
+               AND n.data->>'property_id' = p.id::text
+               AND n.data->>'viewer_id' = $2::text
+           )`,
+        [req.params.id, req.user.id]
+      );
+    }
     res.status(204).end();
   }),
 };
@@ -274,6 +296,20 @@ export const UserController = {
     const body = profileBody.parse(req.body);
     const profile = await withDb(req.user!.id, (db) => UserModel.updateProfile(db, body));
     res.json(profile);
+  }),
+
+  propertyStats: asyncRoute(async (req, res) => {
+    const stats = await withDb(req.user!.id, (db) => PropertyModel.ownerActivity(db));
+    res.json(stats);
+  }),
+
+  pushToken: asyncRoute(async (req, res) => {
+    const body = z.object({
+      token: z.string().min(10).max(300),
+      platform: z.enum(["ios", "android", "web"]).optional(),
+    }).parse(req.body);
+    await savePushToken(req.user!.id, body.token, body.platform ?? null);
+    res.status(204).end();
   }),
 
   remove: asyncRoute(async (req, res) => {

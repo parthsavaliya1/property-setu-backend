@@ -42,8 +42,12 @@ apiRouter.get("/wallet/transactions", requireUser, WalletController.history);
 apiRouter.post("/wallet/order", requireUser, WalletController.order);
 apiRouter.post("/wallet/verify", requireUser, WalletController.verify);
 apiRouter.post("/wallet/spend", requireUser, WalletController.spend);
+apiRouter.post("/properties/:id/publish-free", requireUser, WalletController.publishFree);
 
 apiRouter.get("/me", requireUser, UserController.me);
+apiRouter.get("/me/free-listing", requireUser, WalletController.freeListing);
+apiRouter.get("/me/property-stats", requireUser, UserController.propertyStats);
+apiRouter.post("/me/push-token", requireUser, UserController.pushToken);
 apiRouter.patch("/me", requireUser, UserController.update);
 apiRouter.delete("/me", requireUser, UserController.remove);
 

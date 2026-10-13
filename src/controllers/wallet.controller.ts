@@ -5,6 +5,7 @@ import { HttpError } from "../errors.js";
 import { asyncRoute } from "../http.js";
 import { confirmedPayment, createRazorpayOrder, upgradeCharge, type ListingBadge, type ListingTerm } from "../services/razorpay.js";
 import { verifyPaymentSignature } from "../services/razorpay.js";
+import { alertSavedSearches } from "../services/savedSearchAlerts.js";
 
 const badge = z.enum(["standard", "premium"]);
 const term = z.enum(["month", "year"]);
@@ -101,6 +102,21 @@ export const WalletController = {
     });
     if (!owned) throw new HttpError(404, "Property not found");
     const result = await spendForListing(req.user!.id, body.property_id, body.listing_badge, body.term);
+    void alertSavedSearches(body.property_id);
+    res.json(result);
+  }),
+
+  freeListing: asyncRoute(async (req, res) => {
+    const result = await pool.query<{ free_listing_used: boolean }>(
+      `SELECT free_listing_used FROM accounts WHERE id = $1`,
+      [req.user!.id]
+    );
+    res.json({ available: result.rows[0]?.free_listing_used !== true });
+  }),
+
+  publishFree: asyncRoute(async (req, res) => {
+    const result = await publishFreeListing(req.user!.id, req.params.id);
+    void alertSavedSearches(req.params.id);
     res.json(result);
   }),
 };
@@ -162,10 +178,12 @@ async function spendForListing(userId: string, propertyId: string, plan: Listing
     const row = current.rows[0] as { status: string; expires_at: string | null; is_premium: boolean; listing_term: string } | undefined;
     if (!row) throw new HttpError(404, "Property not found");
     const live = row.status === "published" && (!row.expires_at || new Date(row.expires_at).getTime() > Date.now());
-    const savedBadge: ListingBadge = row.is_premium ? "premium" : "standard";
-    const savedTerm: ListingTerm = row.listing_term === "year" ? "year" : "month";
-    const fee = await upgradeCharge(plan, listingTerm, live ? savedBadge : null, live ? savedTerm : null);
-    const expiryMode = !live
+    const trial = row.listing_term === "trial";
+    const paidLive = live && !trial;
+    const savedBadge: ListingBadge | null = paidLive ? (row.is_premium ? "premium" : "standard") : null;
+    const savedTerm: ListingTerm | null = paidLive ? (row.listing_term === "year" ? "year" : "month") : null;
+    const fee = await upgradeCharge(plan, listingTerm, savedBadge, savedTerm);
+    const expiryMode = !paidLive
       ? (listingTerm === "year" ? "fresh_year" : "fresh_month")
       : (listingTerm === "year" && savedTerm === "month" ? "extend_year" : "keep");
     await ensureWallet(client, userId);
@@ -229,6 +247,66 @@ async function spendForListing(userId: string, propertyId: string, plan: Listing
       charged: fee,
       expires_at: saved.expires_at,
     };
+  } catch (error) {
+    try {
+      await client.query("ROLLBACK");
+    } catch {
+      /* report the original error */
+    }
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+async function publishFreeListing(userId: string, propertyId: string) {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const account = await client.query<{ free_listing_used: boolean }>(
+      `SELECT free_listing_used FROM accounts WHERE id = $1 FOR UPDATE`,
+      [userId]
+    );
+    if (!account.rows[0]) throw new HttpError(404, "Account not found");
+    if (account.rows[0].free_listing_used) {
+      throw new HttpError(402, "Your free listing has already been used. Pay to publish this property.");
+    }
+    const owned = await client.query(
+      `SELECT id FROM properties WHERE id = $1 AND owner_id = $2 FOR UPDATE`,
+      [propertyId, userId]
+    );
+    if (!owned.rows[0]) throw new HttpError(404, "Property not found");
+    const photos = await client.query<{ photos: number }>(
+      `SELECT count(*)::int AS photos FROM property_images WHERE property_id = $1 AND image_type IS DISTINCT FROM 'video'`,
+      [propertyId]
+    );
+    if (Number(photos.rows[0]?.photos ?? 0) < 2) throw new HttpError(400, "Add at least 2 photos.");
+    const property = await client.query<{ id: string; expires_at: string }>(
+      `UPDATE properties
+       SET status = 'published',
+           expires_at = now() + interval '15 days',
+           published_at = COALESCE(published_at, now()),
+           is_premium = false,
+           is_featured = false,
+           verification_status = 'active'
+       WHERE id = $1 AND owner_id = $2
+       RETURNING id, expires_at`,
+      [propertyId, userId]
+    );
+    const saved = property.rows[0];
+    if (!saved) throw new HttpError(404, "Property not found");
+    await client.query(
+      `DELETE FROM property_features WHERE property_id = $1 AND feature_key IN ('listing_badge', 'listing_term')`,
+      [propertyId]
+    );
+    await client.query(
+      `INSERT INTO property_features (property_id, feature_key, feature_value)
+       VALUES ($1, 'listing_term', 'trial')`,
+      [propertyId]
+    );
+    await client.query(`UPDATE accounts SET free_listing_used = true WHERE id = $1`, [userId]);
+    await client.query("COMMIT");
+    return { ok: true, free: true, days: 15, expires_at: saved.expires_at };
   } catch (error) {
     try {
       await client.query("ROLLBACK");

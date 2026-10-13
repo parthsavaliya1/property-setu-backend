@@ -533,6 +533,66 @@ export const PropertyModel = {
     return { id: existing.id, archived: !hard };
   },
 
+  async ownerActivity(db: Db) {
+    const totals = await db.query<{ visits: number; likes: number }>(
+      `SELECT
+         (
+           SELECT count(DISTINCT v.user_id)::int
+           FROM property_views v
+           JOIN properties p ON p.id = v.property_id
+           WHERE p.owner_id = auth.uid()
+             AND v.user_id IS NOT NULL
+             AND v.user_id IS DISTINCT FROM p.owner_id
+         ) AS visits,
+         (
+           SELECT count(*)::int
+           FROM property_favorites f
+           JOIN properties p ON p.id = f.property_id
+           WHERE p.owner_id = auth.uid()
+             AND f.user_id IS DISTINCT FROM p.owner_id
+         ) AS likes`
+    );
+    const days = await db.query<{ day: string; visits: number; likes: number }>(
+      `WITH days AS (
+         SELECT generate_series(
+           (now() AT TIME ZONE 'Asia/Kolkata')::date - 6,
+           (now() AT TIME ZONE 'Asia/Kolkata')::date,
+           interval '1 day'
+         )::date AS day
+       )
+       SELECT days.day::text AS day,
+         (
+           SELECT count(DISTINCT v.user_id)::int
+           FROM property_views v
+           JOIN properties p ON p.id = v.property_id
+           WHERE p.owner_id = auth.uid()
+             AND v.user_id IS NOT NULL
+             AND v.user_id IS DISTINCT FROM p.owner_id
+             AND (v.created_at AT TIME ZONE 'Asia/Kolkata')::date = days.day
+         ) AS visits,
+         (
+           SELECT count(*)::int
+           FROM property_favorites f
+           JOIN properties p ON p.id = f.property_id
+           WHERE p.owner_id = auth.uid()
+             AND f.user_id IS DISTINCT FROM p.owner_id
+             AND (f.created_at AT TIME ZONE 'Asia/Kolkata')::date = days.day
+         ) AS likes
+       FROM days
+       ORDER BY days.day`
+    );
+    const row = totals.rows[0];
+    return {
+      visits: Number(row?.visits ?? 0),
+      likes: Number(row?.likes ?? 0),
+      days: days.rows.map((item) => ({
+        day: item.day,
+        visits: Number(item.visits ?? 0),
+        likes: Number(item.likes ?? 0),
+      })),
+    };
+  },
+
   async recordView(db: Db, idOrSlug: string, deviceType: string) {
     const property = await this.find(db, idOrSlug, false);
     if (!property) throw new HttpError(404, "Property not found");

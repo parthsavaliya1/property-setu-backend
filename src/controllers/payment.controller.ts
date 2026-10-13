@@ -11,6 +11,7 @@ import {
   verifyPaymentSignature,
   type ListingBadge,
 } from "../services/razorpay.js";
+import { alertSavedSearches } from "../services/savedSearchAlerts.js";
 
 const badge = z.enum(["standard", "premium"]);
 
@@ -140,6 +141,7 @@ export const PaymentController = {
     await confirmedPayment(body.razorpay_payment_id, body.razorpay_order_id, amountPaise);
     const plan = badgeFromPaymentType(pending.payment_type);
     const activated = await activateListing(req.user!.id, body.property_id, plan, body.razorpay_order_id, body.razorpay_payment_id);
+    void alertSavedSearches(body.property_id);
     res.json({ ok: true, expires_at: activated.expires_at, status: "published" });
   }),
 };
