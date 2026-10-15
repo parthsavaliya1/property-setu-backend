@@ -1,3 +1,5 @@
+const DEPLOYED_ORIGINS = ["https://property-setu-ps.vercel.app"];
+
 const LOCAL_ORIGINS = [
   "http://localhost:8080",
   "http://127.0.0.1:8080",
@@ -8,7 +10,7 @@ const LOCAL_ORIGINS = [
 
 function configuredOrigins() {
   const fromEnv = process.env.CORS_ORIGIN?.split(",").map((value) => value.trim()).filter(Boolean) ?? [];
-  return [...fromEnv, ...LOCAL_ORIGINS];
+  return [...DEPLOYED_ORIGINS, ...fromEnv, ...LOCAL_ORIGINS];
 }
 
 function privateLanHost(hostname: string) {
