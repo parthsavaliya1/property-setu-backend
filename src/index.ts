@@ -19,7 +19,7 @@ dotenv.config();
 // Normalize Helmet's ESM/CommonJS export across local and deployment builds.
 const helmet = (
   typeof helmetModule === "function" ? helmetModule : helmetModule.default
-) as (options?: HelmetOptions) => RequestHandler;
+) as unknown as (options?: HelmetOptions) => RequestHandler;
 
 const app = express();
 app.use(requestLog);
