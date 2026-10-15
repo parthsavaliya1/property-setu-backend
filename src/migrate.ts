@@ -3,7 +3,10 @@ import path from "node:path";
 import pg from "pg";
 import { pgConfig } from "./pgConfig.js";
 
-const migrationsDir = path.resolve(import.meta.dirname, "../migrations");
+// Vercel bundles the entry point separately; included SQL stays at the project root.
+const migrationsDir = process.env.VERCEL
+  ? path.join(process.cwd(), "migrations")
+  : path.resolve(import.meta.dirname, "../migrations");
 
 /**
  * Records migrations that were applied before this runner existed.
