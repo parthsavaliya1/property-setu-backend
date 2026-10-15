@@ -13,6 +13,7 @@ export function asyncRoute(
 
 export function requestLog(req: Request, res: Response, next: NextFunction) {
   const started = Date.now();
+  console.log(`[request] Incoming ${req.method} ${req.path}`);
   res.on("finish", () => {
     const line = `${req.method} ${req.originalUrl} ${res.statusCode} ${Date.now() - started}ms`;
     if (res.statusCode >= 500) console.error(`[request] ${line}`);

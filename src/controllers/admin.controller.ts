@@ -7,6 +7,7 @@ import { asyncRoute } from "../http.js";
 import { AdminModel } from "../models/admin.model.js";
 import { UserModel } from "../models/user.model.js";
 import { listingSettings, saveListingSettings } from "../services/appSettings.js";
+import { appTheme, isThemeKey, saveAppTheme, THEME_KEYS } from "../services/appTheme.js";
 
 async function assertAdmin(userId: string) {
   const allowed = await withDb(userId, (db) => UserModel.isAdmin(db));
@@ -77,6 +78,20 @@ export const AdminController = {
 
   listingSettings: asyncRoute(async (_req, res) => {
     res.json(await listingSettings());
+  }),
+
+  appTheme: asyncRoute(async (_req, res) => {
+    res.json({ theme: await appTheme(), themes: THEME_KEYS });
+  }),
+
+  updateAppTheme: asyncRoute(async (req, res) => {
+    await assertAdmin(req.user!.id);
+    const body = z.object({ theme: z.string() }).parse(req.body);
+    if (!isThemeKey(body.theme)) {
+      throw new HttpError(400, `theme must be one of: ${THEME_KEYS.join(", ")}`);
+    }
+    const theme = await saveAppTheme(body.theme);
+    res.json({ theme, themes: THEME_KEYS });
   }),
 
   updateListingSettings: asyncRoute(async (req, res) => {
