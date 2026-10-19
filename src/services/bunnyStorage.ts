@@ -22,6 +22,30 @@ function getUploadPrefix() {
   return safe || "property";
 }
 
+export function storageKeyFromUrl(value?: string | null) {
+  if (!value) return null;
+  const { cdnBaseUrl } = getConfig();
+  if (!cdnBaseUrl) return null;
+  try {
+    const base = new URL(cdnBaseUrl.replace(/\/+$/, "") + "/");
+    const url = new URL(value);
+    if (url.origin !== base.origin || !url.pathname.startsWith(base.pathname)) return null;
+    const key = decodeURIComponent(url.pathname.slice(base.pathname.length));
+    if (!key.startsWith(getUploadPrefix() + "/") || key.split("/").some(part => part === ".." || part === ".")) return null;
+    return key;
+  } catch { return null; }
+}
+
+export async function deleteStoredFile(remoteKey: string) {
+  const { zone, accessKey, host } = getConfig();
+  if (!zone || !accessKey) throw new Error("Bunny storage is not configured");
+  if (!remoteKey.startsWith(getUploadPrefix() + "/") || remoteKey.split("/").some(part => part === ".." || part === ".")) throw new Error("Invalid storage key");
+  const response = await fetch(`https://${host}/${encodeURIComponent(zone)}/${remoteKey.split("/").map(encodeURIComponent).join("/")}`, {
+    method: "DELETE", headers: { AccessKey: accessKey }, signal: AbortSignal.timeout(15000),
+  });
+  if (!response.ok && response.status !== 404) throw new Error(`Storage deletion failed (${response.status})`);
+}
+
 function safeExtFromName(name = "", mime = "") {
   const fromName = path.extname(name).toLowerCase().replace(/[^a-z0-9.]/g, "");
   if (fromName && fromName.length <= 8) return fromName;

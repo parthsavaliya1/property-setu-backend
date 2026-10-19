@@ -7,7 +7,12 @@
     "dev": "tsx watch src/index.ts",
     "start": "tsx src/index.ts",
     "migrate": "tsx scripts/migrate.ts",
-    "validate": "tsx scripts/validate.ts"
+    "validate": "tsx scripts/validate.ts",
+    "cleanup:storage": "tsx scripts/cleanup-storage.ts",
+    "typecheck": "tsc --noEmit",
+    "billing:consume": "tsx scripts/consume-play-purchases.ts",
+    "test:safety": "tsx --test scripts/play-readiness.test.ts",
+    "preview:legal": "tsx scripts/preview-legal.ts"
   },
   "dependencies": {
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
@@ -25,6 +30,7 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.10",
     "@types/bcryptjs": "^2.4.6",
     "@types/cors": "^2.8.19",
     "@types/express": "^4.17.23",

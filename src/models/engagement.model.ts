@@ -274,6 +274,8 @@ export const EngagementModel = {
   async openChat(db: Db, propertyId: string, buyerId?: string) {
     const property = await PropertyModel.find(db, propertyId, false);
     if (!property) throw new HttpError(404, "Property not found");
+    const blocked = await db.query(`SELECT public.users_blocked($1, $2) AS blocked`, [buyerId || (await db.query(`SELECT auth.uid() AS id`)).rows[0].id, property.owner_id]);
+    if (blocked.rows[0]?.blocked) throw new HttpError(403, "Messaging is unavailable because a user is blocked");
     const closed = property.status === "sold" || property.status === "rented";
     if (buyerId) {
       const matched = await db.query(
@@ -316,7 +318,9 @@ export const EngagementModel = {
 
   async chat(db: Db, conversationId: string) {
     const result = await db.query(
-      `SELECT c.id, c.property_id, p.title AS property_title,
+      `SELECT c.id, c.property_id, c.buyer_id, c.owner_id, p.title AS property_title,
+              EXISTS (SELECT 1 FROM user_blocks b WHERE b.blocker_id = auth.uid() AND b.blocked_id = CASE WHEN c.buyer_id = auth.uid() THEN c.owner_id ELSE c.buyer_id END) AS blocked_by_me,
+              public.users_blocked(c.buyer_id, c.owner_id) AS messaging_blocked,
               CASE WHEN c.buyer_id = auth.uid() THEN owner_profile.full_name ELSE buyer_profile.full_name END AS other_name,
               CASE WHEN c.buyer_id = auth.uid() THEN owner_profile.avatar_url ELSE buyer_profile.avatar_url END AS other_avatar
        FROM conversations c
@@ -342,11 +346,12 @@ export const EngagementModel = {
     input: { body?: string; attachment_url?: string; attachment_name?: string; attachment_kind?: string; reply_to_id?: string }
   ) {
     const thread = await db.query(
-      `SELECT id, property_id, buyer_id FROM conversations WHERE id = $1`,
+      `SELECT id, property_id, buyer_id, public.users_blocked(buyer_id, owner_id) AS blocked FROM conversations WHERE id = $1`,
       [conversationId]
     );
     const conversation = thread.rows[0];
     if (!conversation) throw new HttpError(404, "Chat not found");
+    if (conversation.blocked) throw new HttpError(403, "Messaging is unavailable because a user is blocked");
     const text = (input.body ?? "").trim();
     if (!text && !input.attachment_url) throw new HttpError(400, "Write a message or attach a file.");
     if (input.reply_to_id) {

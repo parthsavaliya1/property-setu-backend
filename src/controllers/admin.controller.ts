@@ -15,6 +15,16 @@ async function assertAdmin(userId: string) {
 }
 
 export const AdminController = {
+  suspendUser: asyncRoute(async (req, res) => {
+    await assertAdmin(req.user!.id);
+    const id = z.string().uuid().parse(req.params.id);
+    const body = z.object({ suspended: z.boolean() }).parse(req.body);
+    if (id === req.user!.id) throw new HttpError(400, "You cannot suspend your own account");
+    if (await withDb(id, db => UserModel.isAdmin(db))) throw new HttpError(403, "Administrator accounts cannot be suspended here");
+    const result = await pool.query(`UPDATE accounts SET suspended_at = CASE WHEN $2 THEN now() ELSE NULL END WHERE id = $1 RETURNING id, suspended_at`, [id, body.suspended]);
+    if (!result.rowCount) throw new HttpError(404, "Account not found");
+    res.json(result.rows[0]);
+  }),
   stats: asyncRoute(async (req, res) => {
     await assertAdmin(req.user!.id);
     const stats = await withDb(req.user!.id, (db) => AdminModel.stats(db));

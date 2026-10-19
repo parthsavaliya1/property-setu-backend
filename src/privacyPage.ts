@@ -1,62 +1,48 @@
-export const privacyHtml = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>PropertySetu Privacy Policy</title>
-  <style>
-    body { margin: 0; background: #F7F3EC; color: #171717; font-family: Georgia, "Times New Roman", serif; }
-    main { max-width: 720px; margin: 0 auto; padding: 32px 20px 64px; }
-    h1 { font-family: Arial, sans-serif; font-size: 32px; margin: 0 0 8px; }
-    h2 { font-family: Arial, sans-serif; font-size: 20px; margin: 28px 0 8px; }
-    p { font-size: 17px; line-height: 1.55; color: #3f3a36; }
-    .updated { font-family: Arial, sans-serif; font-size: 14px; color: #6F6A64; }
-  </style>
-</head>
-<body>
-  <main>
-    <h1>Privacy Policy</h1>
-    <p class="updated">Last updated 6 October 2026</p>
-    <p>PropertySetu is a property marketplace. This policy explains what we collect, why we collect it, and how you can delete it. You can read it before you create an account. The same policy is available inside the app from the menu, from About us, and from the link on the login and sign up screen.</p>
+import { legalPage } from "./legalPages.js";
 
-    <h2>Who we are</h2>
-    <p>PropertySetu lets you browse, list, buy, rent, and chat about property. This policy covers the PropertySetu app (Android package com.propertyhub.app).</p>
+export const privacySections = [
+  [
+    "Who we are",
+    "PropertySetu is a property marketplace. This policy covers the Android app (com.propertyhub.app), website and backend services."
+  ],
+  [
+    "Information we collect",
+    "We process your name, mobile number, verification codes and optional profile information (photo, bio and address). We store listings, photos, videos, documents, messages, inquiries, visits, reports, blocks and favourites. Listing views include device platform. Where enabled, payment records include amounts, references and wallet balances; we do not store card numbers or UPI PINs."
+  ],
+  [
+    "Location and selected files",
+    "With permission, foreground location helps fill addresses and find nearby homes. We do not request background location. The system picker gives us only the files you select. Published listings are visible to other users. Signed-in users may see contact information made available with a listing. Do not publish sensitive documents or information you do not want others to access."
+  ],
+  [
+    "Voice input",
+    "When you choose the microphone, the device speech-recognition service processes speech to fill the selected field. Depending on the device and provider, audio may be sent to that provider for recognition. PropertySetu does not intentionally save microphone recordings. Text you submit is stored with that field. Voice input is optional; you can type instead and revoke microphone permission in device settings."
+  ],
+  [
+    "Reading a listing from a photo",
+    "When you choose photo reading, the selected image is sent through our backend to Google's Gemini service to extract property fields. Review and correct the result before publishing. Do not submit images with sensitive documents or personal information you are not authorised to share. Selecting ordinary listing photos does not itself invoke photo reading."
+  ],
+  [
+    "How we use information",
+    "We use data to operate accounts, search and publish listings, deliver messages and notifications, process enabled listing services, prevent fraud and handle safety reports. We do not sell personal information."
+  ],
+  [
+    "Service providers and sharing",
+    "Hosting and database providers process service records. Bunny.net stores uploads; 2Factor delivers phone verification; Google Gemini processes optional image extraction. The device speech provider processes optional voice input. Firebase Remote Config receives the app/project identifier, a shared configuration-instance label and network metadata to supply app configuration. Expo and platform notification services process push tokens and notification payloads. Razorpay processes payments where enabled. Other users see published listings and information shared in conversations. We may disclose information when required by law."
+  ],
+  [
+    "Retention and deletion",
+    "We retain account information while you use the service. Delete your account in About us or on our public Delete account page. Deletion removes the active account, profile, owned listings, conversations involving your account, inquiries, visits and linked account data. Uploaded files are placed in a persistent deletion queue. Storage cleanup must be operated regularly. Legacy uploads without ownership records need operator verification before removal; backups and provider caches may keep copies until they expire or are cleared. Contact support for deletion assistance, including if you cannot access your account. Anonymised payment references and purchase-token fingerprints may remain for accounting and duplicate-purchase prevention. Pending payment tokens are removed after finalisation. Copies independently saved by other users cannot be removed by PropertySetu."
+  ],
+  [
+    "Your choices",
+    "You may browse without an account, choose what to upload, and decline location, notification and microphone access. Manage blocks in About us. Account deletion is also available in a browser without installing the app. Contact support about access, correction or deletion."
+  ],
+  [
+    "Children and changes",
+    "PropertySetu is not intended for children under 13. Contact support if a child has provided personal data. We update the policy date when this policy changes."
+  ]
+] as const;
 
-    <h2>Information we collect</h2>
-    <p>Account: your name and mobile number, and the one-time password sent to confirm that number.</p>
-    <p>Profile, if you add it: city, district, state, PIN code, a short bio, and a profile photo.</p>
-    <p>Listings you create: property details, price, address, photos, videos, and documents you choose to upload.</p>
-    <p>Location, only after you allow it: used to fill a listing address and to show homes near you. We do not track location in the background.</p>
-    <p>Messages, inquiries, and visit requests you send.</p>
-    <p>Payments: listing fees and wallet top-ups. Razorpay processes the payment. We store the amount, payment reference, and wallet balance. We do not store your card number or UPI PIN.</p>
-    <p>When a listing is opened, we store the device type (Android, iOS, or web) so the owner can see interest in the property.</p>
-
-    <h2>How we use it</h2>
-    <p>We use this information to create and protect your account, show and search listings, deliver chats and visit requests, take listing payments, send your sign-in code, and handle a report of a listing. We do not sell your personal information.</p>
-
-    <h2>Who we share it with</h2>
-    <p>2Factor receives your mobile number so it can deliver the sign-in code by SMS or phone call.</p>
-    <p>Razorpay receives the payment details needed to complete a wallet top-up or listing fee.</p>
-    <p>Bunny.net stores the photos, videos, and files you upload.</p>
-    <p>Other users can see the listing details you publish. Your name can appear in a chat or inquiry. Your mobile number is not shown on a public listing.</p>
-    <p>We may also share information if the law requires it.</p>
-
-    <h2>How long we keep it</h2>
-    <p>We keep your account, listings, messages, and payment records while the account is open. Sign-in codes are kept only long enough to check them. When you delete your account, we delete the account and the properties you listed.</p>
-
-    <h2>Your choices</h2>
-    <p>You can browse listings without an account. Login and sign up ask you to accept this policy first. The box is not ticked for you.</p>
-    <p>You can turn location and photo access off in your phone settings. Some features then will not work.</p>
-    <p>To permanently delete your account and the properties you listed, open the menu, then About us, then Delete account.</p>
-
-    <h2>Children</h2>
-    <p>PropertySetu is not for children under 13. We do not knowingly collect their information. If you believe a child has given us information, delete that account from About us, or contact us using the developer email on the Google Play listing.</p>
-
-    <h2>Changes</h2>
-    <p>If this policy changes, we update this page and the date above. Sign up and login still ask you to accept the policy shown in the app.</p>
-
-    <h2>Contact</h2>
-    <p>For a privacy question, use the developer email on the PropertySetu page in Google Play.</p>
-  </main>
-</body>
-</html>`;
+export function privacyHtml() {
+  return legalPage("Privacy Policy", privacySections.map(([title, body]) => `<section><h2>${title}</h2><p>${body}</p></section>`).join(""));
+}

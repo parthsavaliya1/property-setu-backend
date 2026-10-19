@@ -160,6 +160,7 @@ async function spendForListing(userId: string, propertyId: string, plan: Listing
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
+    await client.query(`SELECT id FROM accounts WHERE id = $1 FOR UPDATE`, [userId]);
     const current = await client.query(
       `SELECT p.status, p.expires_at, p.is_premium,
          COALESCE(
@@ -172,7 +173,7 @@ async function spendForListing(userId: string, propertyId: string, plan: Listing
            END
          ) AS listing_term
        FROM properties p
-       WHERE p.id = $1 AND p.owner_id = $2`,
+       WHERE p.id = $1 AND p.owner_id = $2 FOR UPDATE OF p`,
       [propertyId, userId]
     );
     const row = current.rows[0] as { status: string; expires_at: string | null; is_premium: boolean; listing_term: string } | undefined;

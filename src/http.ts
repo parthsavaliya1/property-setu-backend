@@ -36,6 +36,13 @@ function logFailure(req: Request, status: number, error: unknown) {
 }
 
 export function errorHandler(error: unknown, req: Request, res: Response, _next: NextFunction) {
+  const capacityError = error as { code?: string; message?: string } | null;
+  if (capacityError?.code === "53300" || /EMAXCONNSESSION|max clients reached in session.?mode|max client connections reached/i.test(capacityError?.message || "")) {
+    logFailure(req, 503, error);
+    res.setHeader("Retry-After", "5");
+    res.status(503).json({ error: "The database is busy. Please try again shortly.", code: "database_busy" });
+    return;
+  }
   if (error instanceof HttpError) {
     logFailure(req, error.status, error);
     res.status(error.status).json({ error: error.message, code: error.code });

@@ -11,6 +11,8 @@ import { checkConnection } from "./db.js";
 import { runMigrations } from "./migrate.js";
 import { databaseTarget } from "./pgConfig.js";
 import { privacyHtml } from "./privacyPage.js";
+import { maintenance } from "./controllers/maintenance.controller.js";
+import { deletionHtml, deletionScript, supportContact, termsHtml } from "./legalPages.js";
 import { attachRealtime } from "./realtime.js";
 import { isAllowedBrowserOrigin } from "./corsOrigin.js";
 
@@ -36,11 +38,23 @@ app.use(
   })
 );
 app.use(express.json({ limit: "2mb" }));
+app.get("/api/maintenance", maintenance);
 app.get("/privacy", (_req, res) => {
   res.setHeader("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'");
   res.setHeader("Cache-Control", "public, max-age=3600");
-  res.type("html").send(privacyHtml);
+  res.type("html").send(privacyHtml());
 });
+app.get("/terms", (_req, res) => {
+  res.setHeader("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'");
+  res.type("html").send(termsHtml());
+});
+app.get("/delete-account", (_req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("Content-Security-Policy", "default-src 'none'; script-src 'self'; connect-src 'self'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'");
+  res.type("html").send(deletionHtml());
+});
+app.get("/delete-account.js", (_req, res) => { res.type("application/javascript").send(deletionScript); });
+app.get("/api/legal", (_req, res) => { res.json({ support_email: supportContact(), privacy: "/privacy", terms: "/terms", deletion: "/delete-account" }); });
 app.use("/api", apiRouter);
 app.use(errorHandler);
 

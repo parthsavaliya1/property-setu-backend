@@ -2,7 +2,14 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "functions": {
     "src/index.ts": {
-      "includeFiles": "migrations/**/*.sql"
+      "includeFiles": "migrations/**/*.sql",
+      "maxDuration": 120
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/maintenance",
+      "schedule": "0 3 * * *"
+    }
+  ]
 }

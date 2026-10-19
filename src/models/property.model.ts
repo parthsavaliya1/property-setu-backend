@@ -145,7 +145,7 @@ export type PropertyWrite = {
 export const PropertyModel = {
   async list(db: Db, query: PropertyListQuery, includePhone: boolean) {
     const params: unknown[] = [];
-    const where: string[] = [];
+    const where: string[] = ["NOT public.users_blocked(auth.uid(), p.owner_id)", "(p.owner_id = auth.uid() OR public.account_active(p.owner_id))"];
     const add = (sql: string, value: unknown) => {
       params.push(value);
       where.push(sql.split("?").join(`$${params.length}`));
@@ -224,7 +224,7 @@ export const PropertyModel = {
 
   async find(db: Db, idOrSlug: string, includePhone: boolean) {
     const result = await db.query(
-      `${propertySelect(includePhone)} WHERE p.id::text = $1 OR p.slug = $1 LIMIT 1`,
+      `${propertySelect(includePhone)} WHERE (p.id::text = $1 OR p.slug = $1) AND NOT public.users_blocked(auth.uid(), p.owner_id) AND (p.owner_id = auth.uid() OR public.account_active(p.owner_id)) LIMIT 1`,
       [idOrSlug]
     );
     return result.rows[0] ?? null;

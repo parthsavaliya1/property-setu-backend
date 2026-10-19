@@ -24,6 +24,7 @@ export function attachRealtime(httpServer: HttpServer) {
         return;
       }
       const user = await verifyAccessToken(token);
+      if (user.suspended) throw new Error("Account suspended");
       socket.data.userId = user.id;
       next();
     } catch (error) {

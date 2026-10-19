@@ -13,10 +13,17 @@ const { Pool } = pg;
 
 export const pool = new Pool({
   ...pgConfig(),
-  max: 10,
+  // Each backend instance owns a pool. Keep room in the shared 15-session
+  // pooler for other instances, migrations and the other project services.
+  max: 3,
   connectionTimeoutMillis: 20000,
-  idleTimeoutMillis: 20000,
+  idleTimeoutMillis: 5000,
   keepAlive: true,
+});
+
+pool.on("error", (error) => {
+  // pg emits errors for idle clients outside a request's try/catch.
+  console.error("[database] Idle connection failed:", error.message);
 });
 
 export async function checkConnection() {

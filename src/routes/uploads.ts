@@ -2,6 +2,7 @@ import { Router } from "express";
 import multer from "multer";
 import { requireUser } from "../auth.js";
 import { asyncRoute } from "../http.js";
+import { pool } from "../db.js";
 import { buildPropertyKey, isConfigured, uploadBuffer } from "../services/bunnyStorage.js";
 import { compressImageBuffer } from "../services/imageCompress.js";
 import { compressVideoBuffer } from "../services/videoCompress.js";
@@ -107,6 +108,7 @@ uploadRouter.post(
       remoteKey: buildPropertyKey(folder, name, contentType),
       contentType,
     });
+    await pool.query(`INSERT INTO user_uploads (remote_key, user_id, url) VALUES ($1, $2, $3)`, [saved.key, req.user!.id, saved.url]);
     res.json({ file: saved });
   })
 );

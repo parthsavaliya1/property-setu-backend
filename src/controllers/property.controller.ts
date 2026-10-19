@@ -1,3 +1,4 @@
+import { deleteAccount } from "../services/accountDeletion.js";
 import { z } from "zod";
 import { pool, withDb, type Db } from "../db.js";
 import { HttpError } from "../errors.js";
@@ -313,22 +314,7 @@ export const UserController = {
   }),
 
   remove: asyncRoute(async (req, res) => {
-    const client = await pool.connect();
-    try {
-      await client.query("BEGIN");
-      await client.query(`DELETE FROM public.properties WHERE owner_id = $1`, [req.user!.id]);
-      const result = await client.query(`DELETE FROM public.accounts WHERE id = $1`, [req.user!.id]);
-      if (!result.rowCount) throw new HttpError(404, "Account not found");
-      await client.query("COMMIT");
-    } catch (error) {
-      await client.query("ROLLBACK");
-      if (error instanceof HttpError) throw error;
-      const code = (error as { code?: string }).code;
-      if (code === "23503") throw new HttpError(409, "This account cannot be deleted yet");
-      throw error;
-    } finally {
-      client.release();
-    }
+    await deleteAccount(req.user!.id);
     res.status(204).end();
   }),
 };

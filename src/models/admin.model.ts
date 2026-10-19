@@ -45,9 +45,10 @@ export const AdminModel = {
 
   async reports(db: Db) {
     const result = await db.query(
-      `SELECT r.*, p.title AS property_title
+      `SELECT r.*, COALESCE(p.title, 'User: ' || COALESCE(u.full_name, r.reported_user_id::text, 'Deleted user')) AS property_title
        FROM property_reports r
-       JOIN properties p ON p.id = r.property_id
+       LEFT JOIN properties p ON p.id = r.property_id
+       LEFT JOIN user_profiles u ON u.id = r.reported_user_id
        ORDER BY r.created_at DESC
        LIMIT 500`
     );
@@ -78,7 +79,7 @@ export const AdminModel = {
 
   async users(db: Db) {
     const result = await db.query(
-      `SELECT p.id, p.full_name, p.email, p.phone, p.city, p.district, p.state,
+      `SELECT p.id, p.full_name, p.email, p.phone, p.city, p.district, p.state, public.account_suspended_at(p.id) AS suspended_at,
               p.is_verified, p.created_at,
               coalesce(w.balance, 0) AS wallet_balance,
               (SELECT count(*)::int FROM properties pr WHERE pr.owner_id = p.id) AS listings,

@@ -9,18 +9,22 @@ import { PaymentController } from "../controllers/payment.controller.js";
 import { WalletController } from "../controllers/wallet.controller.js";
 import { BannerController, receiveBanner } from "../controllers/banner.controller.js";
 import { uploadRouter } from "./uploads.js";
+import { SafetyController } from "../controllers/safety.controller.js";
+import { PlayBillingController } from "../controllers/playBilling.controller.js";
+import { otpSendLimit, otpVerifyLimit } from "../authRateLimit.js";
 
 export const apiRouter = Router();
 
 apiRouter.get("/health", CatalogController.health);
-apiRouter.post("/auth/send-otp", AuthController.sendOtp);
-apiRouter.post("/auth/verify-otp", AuthController.verifyOtp);
-apiRouter.post("/auth/signup", AuthController.signup);
+apiRouter.get("/me/blocks", requireUser, SafetyController.blocks);
+apiRouter.get("/billing/play/products", requireUser, PlayBillingController.products);
+apiRouter.post("/billing/play/verify", requireUser, PlayBillingController.verify);
+apiRouter.put("/users/:id/block", requireUser, SafetyController.block);
+apiRouter.delete("/users/:id/block", requireUser, SafetyController.unblock);
+apiRouter.post("/users/:id/reports", requireUser, SafetyController.reportUser);
+apiRouter.post("/auth/send-otp", otpSendLimit, AuthController.sendOtp);
+apiRouter.post("/auth/verify-otp", otpVerifyLimit, AuthController.verifyOtp);
 apiRouter.post("/auth/login", AuthController.login);
-apiRouter.post("/auth/resend-verification", AuthController.resendVerification);
-apiRouter.get("/auth/verify-email", AuthController.verifyEmail);
-apiRouter.post("/auth/google", AuthController.google);
-apiRouter.get("/auth/google/callback", AuthController.googleCallback);
 apiRouter.use("/uploads", uploadRouter);
 apiRouter.get("/banners", BannerController.list);
 apiRouter.get("/categories", optionalUser, CatalogController.categories);
@@ -81,6 +85,7 @@ apiRouter.delete("/properties/:id/images/:imageId", requireUser, EngagementContr
 
 apiRouter.get("/admin/stats", requireUser, AdminController.stats);
 apiRouter.get("/admin/users", requireUser, AdminController.users);
+apiRouter.patch("/admin/users/:id/suspension", requireUser, AdminController.suspendUser);
 apiRouter.get("/admin/payments", requireUser, AdminController.payments);
 apiRouter.get("/admin/properties", requireUser, AdminController.properties);
 apiRouter.patch("/admin/properties/:id", requireUser, AdminController.updateProperty);
