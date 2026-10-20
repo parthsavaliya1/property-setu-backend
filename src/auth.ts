@@ -31,18 +31,24 @@ export async function verifyAccessToken(token: string): Promise<AuthUser> {
     error.status = 503;
     throw error;
   }
+  let body: TokenBody;
   try {
-    const body = jwt.verify(token, secret) as TokenBody;
+    body = jwt.verify(token, secret) as TokenBody;
     if (!body.id) throw new Error("Invalid session");
-    const account = await pool.query(`SELECT id, suspended_at FROM accounts WHERE id = $1`, [body.id]);
-    if (!account.rowCount) throw new Error("Account no longer exists");
-    return { id: body.id, email: body.email ?? null, suspended: Boolean(account.rows[0].suspended_at) };
-  } catch (err) {
+  } catch {
     const error = new Error("Invalid or expired session") as Error & { status?: number };
     error.status = 401;
-    if ((err as { status?: number }).status) throw err;
     throw error;
   }
+  // Database outages must reach the database error handler, rather than being
+  // misreported as an expired login session.
+  const account = await pool.query(`SELECT id, suspended_at FROM accounts WHERE id = $1`, [body.id]);
+  if (!account.rowCount) {
+    const error = new Error("Invalid or expired session") as Error & { status?: number };
+    error.status = 401;
+    throw error;
+  }
+  return { id: body.id!, email: body.email ?? null, suspended: Boolean(account.rows[0].suspended_at) };
 }
 
 export async function optionalUser(req: Request, _res: Response, next: NextFunction) {

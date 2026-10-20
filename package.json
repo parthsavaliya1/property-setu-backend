@@ -10,6 +10,7 @@
     "validate": "tsx scripts/validate.ts",
     "cleanup:storage": "tsx scripts/cleanup-storage.ts",
     "typecheck": "tsc --noEmit",
+    "check:release": "tsx scripts/check-release.ts",
     "billing:consume": "tsx scripts/consume-play-purchases.ts",
     "test:safety": "tsx --test scripts/play-readiness.test.ts",
     "preview:legal": "tsx scripts/preview-legal.ts"

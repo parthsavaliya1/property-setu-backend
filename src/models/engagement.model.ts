@@ -70,7 +70,7 @@ export const EngagementModel = {
 
   async favorites(db: Db, limit: number, offset: number) {
     const result = await db.query(
-      `SELECT p.id, p.title, p.slug, p.price, p.listing_type, p.bedrooms, p.bathrooms, p.area, p.area_unit,
+      `SELECT p.id, p.owner_id, p.title, p.slug, p.price, p.listing_type, p.bedrooms, p.bathrooms, p.area, p.area_unit,
               p.status, l.city, l.locality,
               (SELECT image_url FROM property_images i WHERE i.property_id = p.id ORDER BY is_cover DESC, sort_order LIMIT 1) AS cover_image,
               f.created_at AS favorited_at
@@ -78,6 +78,8 @@ export const EngagementModel = {
        JOIN properties p ON p.id = f.property_id
        LEFT JOIN property_locations l ON l.property_id = p.id
        WHERE f.user_id = auth.uid()
+         AND NOT public.users_blocked(auth.uid(), p.owner_id)
+         AND (p.owner_id = auth.uid() OR public.account_active(p.owner_id))
        ORDER BY f.created_at DESC
        LIMIT $1 OFFSET $2`,
       [limit, offset]

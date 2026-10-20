@@ -3,7 +3,7 @@ function escapeHtml(value: string) {
 }
 
 export function supportContact() {
-  const email = process.env.SUPPORT_EMAIL?.trim();
+  const email = process.env.SUPPORT_EMAIL?.trim() || "propertysetu.support@gmail.com";
   return email && /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(email) ? email : null;
 }
 

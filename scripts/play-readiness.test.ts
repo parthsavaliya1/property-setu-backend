@@ -13,10 +13,57 @@ import { runInNewContext } from "node:vm";
 import bcrypt from "bcryptjs";
 import { AuthController } from "../src/controllers/auth.controller.js";
 import type { Request, Response } from "express";
+import { signToken, verifyAccessToken } from "../src/auth.js";
+import { EngagementModel } from "../src/models/engagement.model.js";
 
 const buyer = "00000000-0000-4000-8000-000000000001";
 const owner = "00000000-0000-4000-8000-000000000002";
 const stranger = "00000000-0000-4000-8000-000000000003";
+
+test("database failures during token lookup are not misreported as invalid sessions", async t => {
+  const previous = process.env.JWT_SECRET;
+  process.env.JWT_SECRET = 'isolated-token-verification-key';
+  const failure = Object.assign(new Error('max clients reached in sessionmode'), { code: '53300' });
+  t.mock.method(pool, 'query', (async () => { throw failure; }) as unknown as typeof pool.query);
+  try {
+    await assert.rejects(verifyAccessToken(signToken({ id: buyer, email: null })), error => error === failure);
+    await assert.rejects(verifyAccessToken('invalid-token'), error => (error as { status?: number }).status === 401);
+  } finally {
+    if (previous === undefined) delete process.env.JWT_SECRET; else process.env.JWT_SECRET = previous;
+  }
+});
+
+test("Saved properties hide blocked owners in either direction and return after unblock", async () => {
+  const db = new PGlite();
+  const client = { query: db.query.bind(db) } as unknown as Db;
+  try {
+    await db.exec(`
+      CREATE SCHEMA auth;
+      CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql AS $$ SELECT '${buyer}'::uuid $$;
+      CREATE TABLE accounts (id uuid PRIMARY KEY, suspended_at timestamptz);
+      CREATE TABLE user_blocks (blocker_id uuid, blocked_id uuid);
+      CREATE FUNCTION public.users_blocked(a uuid, b uuid) RETURNS boolean LANGUAGE sql AS $$ SELECT EXISTS(SELECT 1 FROM user_blocks WHERE (blocker_id=a AND blocked_id=b) OR (blocker_id=b AND blocked_id=a)) $$;
+      CREATE FUNCTION public.account_active(a uuid) RETURNS boolean LANGUAGE sql AS $$ SELECT EXISTS(SELECT 1 FROM accounts WHERE id=a AND suspended_at IS NULL) $$;
+      CREATE TABLE properties (id uuid PRIMARY KEY, owner_id uuid, title text, slug text, price numeric, listing_type text, bedrooms int, bathrooms int, area numeric, area_unit text, status text);
+      CREATE TABLE property_favorites (property_id uuid, user_id uuid, created_at timestamptz DEFAULT now());
+      CREATE TABLE property_locations (property_id uuid, city text, locality text);
+      CREATE TABLE property_images (property_id uuid, image_url text, is_cover boolean, sort_order int);
+      INSERT INTO accounts (id) VALUES ('${buyer}'), ('${owner}'), ('${stranger}');
+      INSERT INTO properties (id, owner_id, title) VALUES ('${owner}', '${owner}', 'First'), ('${stranger}', '${stranger}', 'Second');
+      INSERT INTO property_favorites (property_id,user_id) VALUES ('${owner}', '${buyer}'), ('${stranger}', '${buyer}');
+    `);
+    assert.equal((await EngagementModel.favorites(client, 20, 0)).length, 2);
+    await db.exec(`INSERT INTO user_blocks VALUES ('${buyer}', '${owner}')`);
+    const rows = await EngagementModel.favorites(client, 20, 0);
+    assert.equal(rows.length, 1); assert.equal(rows[0].owner_id, stranger);
+    await db.exec(`DELETE FROM user_blocks; INSERT INTO user_blocks VALUES ('${owner}', '${buyer}')`);
+    assert.equal((await EngagementModel.favorites(client, 20, 0)).length, 1);
+    await db.exec(`DELETE FROM user_blocks`);
+    assert.equal((await EngagementModel.favorites(client, 20, 0)).length, 2);
+    await db.exec(`UPDATE accounts SET suspended_at = now() WHERE id='${owner}'`);
+    assert.equal((await EngagementModel.favorites(client, 20, 0)).length, 1);
+  } finally { await db.close(); }
+});
 
 test("mobile/password login remains available while email-only login is rejected", async t => {
   const previous = process.env.JWT_SECRET;
