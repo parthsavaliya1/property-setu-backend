@@ -40,10 +40,9 @@ app.use(
 app.use(express.json({ limit: "2mb" }));
 app.get("/", (_req, res) => {
   res.setHeader("Cache-Control", "no-store");
-  res.status(200).json({
-    status: "ok",
-    message: "Property Setu backend is running successfully.",
-  });
+  res.status(200).type("html").send(
+    '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Property Setu API</title></head><body>Property Setu API Running 🏠</body></html>'
+  );
 });
 app.get("/api/maintenance", maintenance);
 app.get("/privacy", (_req, res) => {
