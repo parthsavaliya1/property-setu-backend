@@ -38,6 +38,13 @@ app.use(
   })
 );
 app.use(express.json({ limit: "2mb" }));
+app.get("/", (_req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  res.status(200).json({
+    status: "ok",
+    message: "Property Setu backend is running successfully.",
+  });
+});
 app.get("/api/maintenance", maintenance);
 app.get("/privacy", (_req, res) => {
   res.setHeader("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'");
