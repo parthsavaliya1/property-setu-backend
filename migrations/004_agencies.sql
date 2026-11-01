@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS public.agencies (
   rera_number TEXT,
   is_verified BOOLEAN NOT NULL DEFAULT false,
   verification_status TEXT NOT NULL DEFAULT 'pending',
-  created_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  created_by UUID REFERENCES public.accounts(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   CONSTRAINT agencies_slug_unique UNIQUE (slug),
@@ -38,7 +38,7 @@ COMMENT ON COLUMN public.agencies.rera_number IS
 CREATE TABLE IF NOT EXISTS public.agency_members (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   agency_id UUID NOT NULL REFERENCES public.agencies(id) ON DELETE CASCADE,
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES public.accounts(id) ON DELETE CASCADE,
   role TEXT NOT NULL DEFAULT 'agent',
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),

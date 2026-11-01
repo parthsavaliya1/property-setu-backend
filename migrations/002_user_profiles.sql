@@ -1,8 +1,7 @@
--- Profile row for every Supabase auth user.
--- Authentication stays in auth.users. This table stores marketplace profile data.
+-- Marketplace profile for a backend account. Legacy Supabase triggers are optional.
 
 CREATE TABLE IF NOT EXISTS public.user_profiles (
-  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  id UUID PRIMARY KEY REFERENCES public.accounts(id) ON DELETE CASCADE,
   full_name TEXT,
   phone TEXT,
   email TEXT,
@@ -18,9 +17,9 @@ CREATE TABLE IF NOT EXISTS public.user_profiles (
 );
 
 COMMENT ON TABLE public.user_profiles IS
-  'Public marketplace profile for an auth.users account. One row is created automatically at signup.';
+  'Marketplace profile for a backend account.';
 COMMENT ON COLUMN public.user_profiles.id IS
-  'Same id as auth.users. Deleting the auth user deletes this profile.';
+  'Same id as accounts. Deleting the account deletes this profile.';
 COMMENT ON COLUMN public.user_profiles.is_verified IS
   'Set only by an admin. Users cannot verify themselves.';
 COMMENT ON COLUMN public.user_profiles.phone IS
@@ -68,11 +67,15 @@ $$;
 COMMENT ON FUNCTION public.handle_new_user() IS
   'Creates a user_profiles row when auth.users gains a user. Safe to run more than once.';
 
+DO $$ BEGIN
+  IF to_regclass('auth.users') IS NOT NULL THEN
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW
   EXECUTE FUNCTION public.handle_new_user();
+  END IF;
+END $$;
 
 CREATE OR REPLACE FUNCTION public.handle_auth_user_updated()
 RETURNS trigger
@@ -99,8 +102,12 @@ BEGIN
 END;
 $$;
 
+DO $$ BEGIN
+  IF to_regclass('auth.users') IS NOT NULL THEN
 DROP TRIGGER IF EXISTS on_auth_user_updated ON auth.users;
 CREATE TRIGGER on_auth_user_updated
   AFTER UPDATE OF email, phone, raw_user_meta_data ON auth.users
   FOR EACH ROW
   EXECUTE FUNCTION public.handle_auth_user_updated();
+  END IF;
+END $$;

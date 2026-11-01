@@ -976,6 +976,10 @@ GRANT EXECUTE ON FUNCTION public.can_view_property(uuid) TO anon;
 -- Storage buckets for listing photos and private documents
 -- ---------------------------------------------------------------------------
 
+-- Local/Bunny storage deployments do not install Supabase Storage.
+DO $storage$ BEGIN
+  IF to_regclass('storage.buckets') IS NOT NULL
+     AND to_regclass('storage.objects') IS NOT NULL THEN
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 VALUES (
   'property-images',
@@ -1045,3 +1049,6 @@ CREATE POLICY property_documents_storage_all ON storage.objects
       OR public.is_admin()
     )
   );
+
+  END IF;
+END $storage$;

@@ -3,8 +3,8 @@
 CREATE TABLE IF NOT EXISTS public.property_visits (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   property_id UUID NOT NULL REFERENCES public.properties(id) ON DELETE CASCADE,
-  buyer_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
-  agent_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  buyer_id UUID REFERENCES public.accounts(id) ON DELETE SET NULL,
+  agent_id UUID REFERENCES public.accounts(id) ON DELETE SET NULL,
   scheduled_at TIMESTAMPTZ,
   status TEXT NOT NULL DEFAULT 'requested',
   notes TEXT,

@@ -4,9 +4,9 @@
 
 CREATE TABLE IF NOT EXISTS public.properties (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  owner_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  owner_id UUID NOT NULL REFERENCES public.accounts(id) ON DELETE CASCADE,
   agency_id UUID REFERENCES public.agencies(id) ON DELETE SET NULL,
-  agent_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  agent_id UUID REFERENCES public.accounts(id) ON DELETE SET NULL,
   category_id UUID NOT NULL REFERENCES public.property_categories(id),
   title TEXT NOT NULL,
   slug TEXT NOT NULL,

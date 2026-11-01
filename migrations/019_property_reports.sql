@@ -3,11 +3,11 @@
 CREATE TABLE IF NOT EXISTS public.property_reports (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   property_id UUID NOT NULL REFERENCES public.properties(id) ON DELETE CASCADE,
-  reported_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  reported_by UUID REFERENCES public.accounts(id) ON DELETE SET NULL,
   reason TEXT NOT NULL,
   description TEXT,
   status TEXT NOT NULL DEFAULT 'pending',
-  reviewed_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  reviewed_by UUID REFERENCES public.accounts(id) ON DELETE SET NULL,
   reviewed_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),

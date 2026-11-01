@@ -3,7 +3,7 @@
 CREATE TABLE IF NOT EXISTS public.property_views (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   property_id UUID NOT NULL REFERENCES public.properties(id) ON DELETE CASCADE,
-  user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  user_id UUID REFERENCES public.accounts(id) ON DELETE SET NULL,
   ip_address INET,
   device_type TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),

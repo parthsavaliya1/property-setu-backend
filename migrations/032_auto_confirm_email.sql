@@ -16,6 +16,8 @@ BEGIN
 END;
 $$;
 
+DO $$ BEGIN
+  IF to_regclass('auth.users') IS NOT NULL THEN
 DROP TRIGGER IF EXISTS confirm_user_email ON auth.users;
 
 CREATE TRIGGER confirm_user_email
@@ -26,3 +28,6 @@ CREATE TRIGGER confirm_user_email
 UPDATE auth.users
 SET email_confirmed_at = now()
 WHERE email_confirmed_at IS NULL;
+
+  END IF;
+END $$;

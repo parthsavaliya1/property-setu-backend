@@ -2,7 +2,7 @@
 
 CREATE TABLE IF NOT EXISTS public.payments (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  user_id UUID REFERENCES public.accounts(id) ON DELETE SET NULL,
   property_id UUID REFERENCES public.properties(id) ON DELETE SET NULL,
   subscription_id UUID REFERENCES public.subscriptions(id) ON DELETE SET NULL,
   amount NUMERIC(15,2) NOT NULL,

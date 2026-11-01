@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS public.property_status_history (
   property_id UUID NOT NULL REFERENCES public.properties(id) ON DELETE CASCADE,
   old_status TEXT,
   new_status TEXT NOT NULL,
-  changed_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  changed_by UUID REFERENCES public.accounts(id) ON DELETE SET NULL,
   reason TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );

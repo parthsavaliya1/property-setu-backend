@@ -13,10 +13,15 @@ ALTER TABLE public.accounts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.accounts ADD COLUMN IF NOT EXISTS password_set BOOLEAN NOT NULL DEFAULT false;
 
 -- Keep existing profile rows valid after the foreign keys move off auth.users.
+DO $$ BEGIN
+  IF to_regclass('auth.users') IS NOT NULL THEN
 INSERT INTO public.accounts (id, email, password_hash)
 SELECT id, COALESCE(NULLIF(btrim(email), ''), id::text || '@users.local'), crypt(gen_random_uuid()::text, gen_salt('bf'))
 FROM auth.users
 ON CONFLICT (id) DO NOTHING;
+
+  END IF;
+END $$;
 
 DO $$
 DECLARE
@@ -30,7 +35,7 @@ BEGIN
     JOIN pg_namespace n ON n.oid = c.relnamespace
     WHERE con.contype = 'f'
       AND n.nspname = 'public'
-      AND con.confrelid = 'auth.users'::regclass
+      AND con.confrelid = to_regclass('auth.users')
   LOOP
     definition := replace(constraint_row.definition, 'REFERENCES auth.users', 'REFERENCES public.accounts');
     EXECUTE format('ALTER TABLE %I.%I DROP CONSTRAINT %I', constraint_row.schema_name, constraint_row.table_name, constraint_row.constraint_name);

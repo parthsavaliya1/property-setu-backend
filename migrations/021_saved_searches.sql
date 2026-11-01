@@ -2,7 +2,7 @@
 
 CREATE TABLE IF NOT EXISTS public.saved_searches (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES public.accounts(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   city TEXT,
   locality TEXT,

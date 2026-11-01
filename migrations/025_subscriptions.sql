@@ -2,7 +2,7 @@
 
 CREATE TABLE IF NOT EXISTS public.subscriptions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES public.accounts(id) ON DELETE CASCADE,
   agency_id UUID REFERENCES public.agencies(id) ON DELETE SET NULL,
   plan_id UUID REFERENCES public.subscription_plans(id) ON DELETE SET NULL,
   status TEXT NOT NULL DEFAULT 'active',
