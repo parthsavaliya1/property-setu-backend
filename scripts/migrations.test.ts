@@ -27,6 +27,8 @@ test('entire migration history installs without Supabase and preserves account f
         .replace(/USING gist \(location_point\)/gi, '(location_point)');
       try { await db.exec(sql); } catch (error) { throw new Error(`Migration failed: ${file}`, { cause: error }); }
     }
+    const demo = await db.query<{ otp: string; active: boolean }>("SELECT otp, active FROM demo_users WHERE phone = '9909049699'");
+    assert.deepEqual(demo.rows, [{ otp: '111298', active: true }]);
     assert.equal((await db.query<{ users: string | null }>("SELECT to_regclass('auth.users') AS users")).rows[0].users, null);
     const id = '00000000-0000-4000-8000-000000000001';
     await db.query("INSERT INTO accounts (id,email,password_hash) VALUES ($1,'test@example.com','unused')", [id]);
