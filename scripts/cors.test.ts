@@ -23,11 +23,13 @@ test("production admin login preflight allows the website and rejects unrelated 
       method: "OPTIONS",
       headers: { Origin: value, "Access-Control-Request-Method": "POST", "Access-Control-Request-Headers": "content-type,authorization" },
     });
-    const allowed = await preflight(origin);
-    assert.equal(allowed.status, 204);
-    assert.equal(allowed.headers.get("access-control-allow-origin"), origin);
-    assert.match(allowed.headers.get("access-control-allow-headers") ?? "", /authorization/);
-    for (const value of ["https://untrusted.example", `${origin}.attacker.example`]) {
+    for (const value of [origin, "https://propertysetu.co.in", "https://www.propertysetu.co.in"]) {
+      const allowed = await preflight(value);
+      assert.equal(allowed.status, 204);
+      assert.equal(allowed.headers.get("access-control-allow-origin"), value);
+      assert.match(allowed.headers.get("access-control-allow-headers") ?? "", /authorization/);
+    }
+    for (const value of ["https://untrusted.example", `${origin}.attacker.example`, "https://propertysetu.co.in.attacker.example"]) {
       const denied = await preflight(value);
       assert.equal(denied.headers.get("access-control-allow-origin"), null);
     }

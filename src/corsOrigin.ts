@@ -1,4 +1,8 @@
-const DEPLOYED_ORIGINS = ["https://property-setu-ps.vercel.app"];
+const DEPLOYED_ORIGINS = [
+  "https://property-setu-ps.vercel.app",
+  "https://propertysetu.co.in",
+  "https://www.propertysetu.co.in",
+];
 
 const LOCAL_ORIGINS = [
   "http://localhost:8080",
