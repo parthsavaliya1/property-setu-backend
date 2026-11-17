@@ -7,6 +7,7 @@ export type ListingSettings = {
   premiumOfferPercent: number;
   premiumSavings: number;
   yearlyDiscountPercent: number;
+  websiteOfferPercent: number;
 };
 
 const fallback = {
@@ -41,6 +42,7 @@ function shape(raw: Record<string, string>): ListingSettings {
     premiumOfferPercent,
     premiumSavings: Math.max(0, premiumListPrice - premiumPrice),
     yearlyDiscountPercent,
+    websiteOfferPercent: percent(raw.website_offer_percent, 0),
   };
 }
 
@@ -56,7 +58,7 @@ export async function listingSettings(): Promise<ListingSettings> {
   try {
     const result = await pool.query<{ key: string; value: string }>(
       `SELECT key, value FROM public.app_settings
-       WHERE key IN ('standard_price', 'premium_price', 'premium_offer_percent', 'yearly_discount_percent')`
+       WHERE key IN ('standard_price', 'premium_price', 'premium_offer_percent', 'yearly_discount_percent', 'website_offer_percent')`
     );
     const raw: Record<string, string> = {};
     for (const row of result.rows) raw[row.key] = row.value;
@@ -76,6 +78,7 @@ export async function saveListingSettings(input: {
   premiumPrice: number;
   premiumOfferPercent: number;
   yearlyDiscountPercent: number;
+  websiteOfferPercent?: number;
 }) {
   const rows: Array<[string, string]> = [
     ["standard_price", String(input.standardPrice)],
@@ -83,6 +86,7 @@ export async function saveListingSettings(input: {
     ["premium_offer_percent", String(input.premiumOfferPercent)],
     ["yearly_discount_percent", String(input.yearlyDiscountPercent)],
   ];
+  if (input.websiteOfferPercent !== undefined) rows.push(["website_offer_percent", String(input.websiteOfferPercent)]);
   for (const [key, value] of rows) {
     await pool.query(
       `INSERT INTO public.app_settings (key, value, updated_at)

@@ -95,13 +95,15 @@ export const WalletController = {
       property_id: z.string().uuid(),
       listing_badge: badge,
       term,
+      pricing_channel: z.enum(["app", "website"]).default("app"),
+      expected_charge: z.number().int().positive().optional(),
     }).parse(req.body);
     const owned = await withDb(req.user!.id, async (db) => {
       const result = await db.query(`SELECT id FROM properties WHERE id = $1`, [body.property_id]);
       return result.rows[0] as { id: string } | undefined;
     });
     if (!owned) throw new HttpError(404, "Property not found");
-    const result = await spendForListing(req.user!.id, body.property_id, body.listing_badge, body.term);
+    const result = await spendForListing(req.user!.id, body.property_id, body.listing_badge, body.term, body.pricing_channel, body.expected_charge);
     void alertSavedSearches(body.property_id);
     res.json(result);
   }),
@@ -156,7 +158,7 @@ async function creditWallet(userId: string, amount: number, paymentId: string, o
   }
 }
 
-async function spendForListing(userId: string, propertyId: string, plan: ListingBadge, listingTerm: ListingTerm) {
+async function spendForListing(userId: string, propertyId: string, plan: ListingBadge, listingTerm: ListingTerm, channel: "app" | "website" = "app", expectedCharge?: number) {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -183,7 +185,10 @@ async function spendForListing(userId: string, propertyId: string, plan: Listing
     const paidLive = live && !trial;
     const savedBadge: ListingBadge | null = paidLive ? (row.is_premium ? "premium" : "standard") : null;
     const savedTerm: ListingTerm | null = paidLive ? (row.listing_term === "year" ? "year" : "month") : null;
-    const fee = await upgradeCharge(plan, listingTerm, savedBadge, savedTerm);
+    const fee = await upgradeCharge(plan, listingTerm, savedBadge, savedTerm, channel);
+    if (expectedCharge !== undefined && fee !== expectedCharge) {
+      throw new HttpError(409, "Listing pricing changed. Review the updated charge before continuing.");
+    }
     const expiryMode = !paidLive
       ? (listingTerm === "year" ? "fresh_year" : "fresh_month")
       : (listingTerm === "year" && savedTerm === "month" ? "extend_year" : "keep");

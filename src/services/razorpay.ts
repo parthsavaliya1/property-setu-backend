@@ -5,11 +5,11 @@ import { listingSettings } from "./appSettings.js";
 export type ListingBadge = "standard" | "premium";
 export type ListingTerm = "month" | "year";
 
-export async function listingFeeRupees(badge: ListingBadge, term: ListingTerm = "month") {
+export async function listingFeeRupees(badge: ListingBadge, term: ListingTerm = "month", channel: "app" | "website" = "app") {
   const fees = await listingSettings();
   const monthly = badge === "premium" ? fees.premiumPrice : fees.standardPrice;
-  if (term === "month") return monthly;
-  return Math.round((monthly * 12 * (100 - fees.yearlyDiscountPercent)) / 100);
+  const original = term === "month" ? monthly : Math.round((monthly * 12 * (100 - fees.yearlyDiscountPercent)) / 100);
+  return channel === "website" ? Math.round(original * (100 - fees.websiteOfferPercent) / 100) : original;
 }
 
 /** Extra to collect when a live listing moves to a higher plan. The current fee is already paid. */
@@ -18,10 +18,11 @@ export async function upgradeCharge(
   nextTerm: ListingTerm,
   currentBadge: ListingBadge | null,
   currentTerm: ListingTerm | null,
+  channel: "app" | "website" = "app",
 ) {
-  const nextFee = await listingFeeRupees(nextBadge, nextTerm);
+  const nextFee = await listingFeeRupees(nextBadge, nextTerm, channel);
   if (!currentBadge || !currentTerm) return nextFee;
-  return Math.max(0, nextFee - await listingFeeRupees(currentBadge, currentTerm));
+  return Math.max(0, nextFee - await listingFeeRupees(currentBadge, currentTerm, channel));
 }
 
 export function paymentTypeFor(badge: ListingBadge) {

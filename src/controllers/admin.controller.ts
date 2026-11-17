@@ -111,12 +111,14 @@ export const AdminController = {
       premium_price: z.number().int().min(0).max(100000),
       premium_offer_percent: z.number().int().min(0).max(90),
       yearly_discount_percent: z.number().int().min(0).max(90),
+      website_offer_percent: z.number().int().min(0).max(90).optional(),
     }).parse(req.body);
     const saved = await saveListingSettings({
       standardPrice: body.standard_price,
       premiumPrice: body.premium_price,
       premiumOfferPercent: body.premium_offer_percent,
       yearlyDiscountPercent: body.yearly_discount_percent,
+      websiteOfferPercent: body.website_offer_percent,
     });
     res.json(saved);
   }),
