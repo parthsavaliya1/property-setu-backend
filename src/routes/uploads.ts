@@ -1,3 +1,5 @@
+import { mediaSettings } from "../services/mediaSettings.js";
+import { HttpError } from "../errors.js";
 import { Router } from "express";
 import multer from "multer";
 import { requireUser } from "../auth.js";
@@ -86,18 +88,20 @@ uploadRouter.post(
     let contentType = mime;
     let name = file.originalname || "file";
 
+    const settings = await mediaSettings();
     if (video) {
-      const compressed = await compressVideoBuffer(buffer, mime);
+      const compressed = await compressVideoBuffer(buffer, mime, settings);
       buffer = compressed.buffer;
       contentType = compressed.contentType;
     } else if (image) {
       try {
-        const compressed = await compressImageBuffer(buffer, name);
+        const compressed = await compressImageBuffer(buffer, name, settings);
         buffer = compressed.buffer;
         contentType = compressed.contentType;
       } catch (err) {
         const message = err instanceof Error ? err.message : "compress failed";
-        console.error(`[image-compress] failed, uploading original: ${message}`);
+        console.error(`[image-compress] processing failed: ${message}`);
+        throw new HttpError(400, "Could not process this photo. Please choose another image.");
       }
     }
 

@@ -1,3 +1,5 @@
+import { mediaSettings, type MediaSettings } from "./mediaSettings.js";
+import { HttpError } from "../errors.js";
 import { execFile } from "node:child_process";
 import { createRequire } from "node:module";
 import fs from "node:fs";
@@ -16,13 +18,6 @@ function ffmpegBinary() {
   }
 }
 
-function envInt(name: string, fallback: number) {
-  const raw = process.env[name];
-  if (raw == null || String(raw).trim() === "") return fallback;
-  const value = Number(raw);
-  return Number.isFinite(value) && value > 0 ? value : fallback;
-}
-
 function extForMime(mime: string) {
   const value = mime.toLowerCase();
   if (value.includes("webm")) return ".webm";
@@ -32,55 +27,38 @@ function extForMime(mime: string) {
   return ".mp4";
 }
 
-export async function compressVideoBuffer(input: Buffer, mime = "video/mp4") {
-  const maxEdge = envInt("MEDIA_VIDEO_MAX_EDGE", 720);
-  const targetBytes = envInt("MEDIA_VIDEO_TARGET_BYTES", 3 * 1024 * 1024);
-  const crf = envInt("MEDIA_VIDEO_CRF", 28);
+export function durationFromOutput(output: string): number {
+  const match = output.match(/Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/);
+  if (!match) throw new HttpError(400, "Could not read video duration. Please choose another video.");
+  const duration = Number(match[1]) * 3600 + Number(match[2]) * 60 + Number(match[3]);
+  if (!(duration > 0)) throw new HttpError(400, "The video is empty or invalid.");
+  return duration;
+}
+export async function compressVideoBuffer(input: Buffer, mime = "video/mp4", settings?: MediaSettings) {
+  const limits = settings || await mediaSettings();
+  if (limits.maxVideos === 0) throw new HttpError(400, "Video uploads are currently disabled.");
+  const crf = { high: 22, balanced: 28, compact: 32 }[limits.videoQuality];
   const audioBitrate = (process.env.MEDIA_VIDEO_AUDIO_BITRATE || "96k").trim() || "96k";
-
-  if (input.length > 0 && input.length <= targetBytes) {
-    return { buffer: input, contentType: mime || "video/mp4" };
-  }
-
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "property-vid-"));
   const inputPath = path.join(tmpDir, `in${extForMime(mime)}`);
   const outputPath = path.join(tmpDir, "out.mp4");
   try {
     fs.writeFileSync(inputPath, input);
+    const probe = await execFileAsync(ffmpegBinary(), ["-hide_banner", "-i", inputPath, "-t", "0", "-f", "null", "-"], { timeout: 30000, maxBuffer: 2 * 1024 * 1024 });
+    const duration = durationFromOutput(probe.stderr);
+    if (duration > limits.maxVideoDurationSeconds + 0.05) throw new HttpError(400, `Each video must be ${limits.maxVideoDurationSeconds} seconds or shorter.`);
     await execFileAsync(ffmpegBinary(), [
-      "-y",
-      "-i",
-      inputPath,
-      "-vf",
-      `scale='min(${maxEdge},iw)':-2`,
-      "-c:v",
-      "libx264",
-      "-preset",
-      "medium",
-      "-crf",
-      String(crf),
-      "-c:a",
-      "aac",
-      "-b:a",
-      audioBitrate,
-      "-movflags",
-      "+faststart",
-      outputPath,
-    ]);
-    const out = fs.readFileSync(outputPath);
-    if (out.length > 0 && out.length < input.length) {
-      return { buffer: out, contentType: "video/mp4" };
-    }
-    return { buffer: input, contentType: mime || "video/mp4" };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "ffmpeg failed";
-    console.error(`[video-compress] failed, uploading original: ${message}`);
-    return { buffer: input, contentType: mime || "video/mp4" };
-  } finally {
-    try {
-      fs.rmSync(tmpDir, { recursive: true, force: true });
-    } catch {
-      /* ignore */
-    }
-  }
+      "-y", "-i", inputPath, "-map", "0:v:0", "-map", "0:a?",
+      "-vf", `scale='if(gte(iw,ih),trunc(min(${limits.videoMaxEdge},iw)/2)*2,-2)':'if(gte(iw,ih),-2,trunc(min(${limits.videoMaxEdge},ih)/2)*2)'`,
+      "-c:v", "libx264", "-preset", "medium", "-crf", String(crf),
+      "-c:a", "aac", "-b:a", audioBitrate, "-movflags", "+faststart", outputPath,
+    ], { timeout: 150000, maxBuffer: 2 * 1024 * 1024 });
+    const output = fs.readFileSync(outputPath);
+    if (!output.length) throw new Error("Empty compressed video");
+    return { buffer: output, contentType: "video/mp4", durationSeconds: duration };
+  } catch (error) {
+    if (error instanceof HttpError) throw error;
+    console.error("[video-compress] video validation or conversion failed");
+    throw new HttpError(400, "Could not process this video. Please try a different video.");
+  } finally { fs.rmSync(tmpDir, { recursive: true, force: true }); }
 }

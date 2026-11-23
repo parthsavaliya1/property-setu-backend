@@ -30,6 +30,7 @@ apiRouter.get("/banners", BannerController.list);
 apiRouter.get("/categories", optionalUser, CatalogController.categories);
 apiRouter.get("/amenities", optionalUser, CatalogController.amenities);
 apiRouter.get("/plans", optionalUser, CatalogController.plans);
+apiRouter.get("/media-settings", AdminController.mediaSettings);
 apiRouter.get("/listing-settings", AdminController.listingSettings);
 apiRouter.get("/app-theme", AdminController.appTheme);
 
@@ -93,6 +94,8 @@ apiRouter.get("/admin/banners", requireUser, BannerController.adminList);
 apiRouter.post("/admin/banners", requireUser, receiveBanner, BannerController.create);
 apiRouter.patch("/admin/banners/:id", requireUser, BannerController.update);
 apiRouter.delete("/admin/banners/:id", requireUser, BannerController.remove);
+apiRouter.get("/admin/media-settings", requireUser, AdminController.mediaSettings);
+apiRouter.patch("/admin/media-settings", requireUser, AdminController.updateMediaSettings);
 apiRouter.get("/admin/settings", requireUser, AdminController.listingSettings);
 apiRouter.patch("/admin/settings", requireUser, AdminController.updateListingSettings);
 apiRouter.get("/admin/app-theme", requireUser, AdminController.appTheme);

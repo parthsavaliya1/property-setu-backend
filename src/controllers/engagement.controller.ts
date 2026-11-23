@@ -1,3 +1,4 @@
+import { mediaSettings, validateMediaCounts } from "../services/mediaSettings.js";
 import { z } from "zod";
 import { pool, withDb } from "../db.js";
 import { HttpError } from "../errors.js";
@@ -249,7 +250,13 @@ export const EngagementController = {
       image_type: z.string().default("gallery"),
       is_cover: z.boolean().optional(),
     }).parse(req.body);
-    const row = await withDb(req.user!.id, (db) => PropertyModel.addImage(db, req.params.id, body));
+    const limits = await mediaSettings();
+    const row = await withDb(req.user!.id, async (db) => {
+      await db.query("SELECT id FROM properties WHERE id = $1 FOR UPDATE", [req.params.id]);
+      const current = await db.query<{ image_type: string }>("SELECT image_type FROM property_images WHERE property_id = $1", [req.params.id]);
+      validateMediaCounts([...current.rows, body], limits);
+      return PropertyModel.addImage(db, req.params.id, body);
+    });
     if (!row) throw new HttpError(404, "Property not found");
     res.status(201).json(row);
   }),

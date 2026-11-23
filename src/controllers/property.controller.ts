@@ -1,3 +1,4 @@
+import { mediaSettings, validateMediaCounts } from "../services/mediaSettings.js";
 import { deleteAccount } from "../services/accountDeletion.js";
 import { z } from "zod";
 import { pool, withDb, type Db } from "../db.js";
@@ -63,7 +64,7 @@ const propertyBody = z.object({
     image_type: z.string().optional(),
     is_cover: z.boolean().optional(),
     sort_order: z.number().int().optional(),
-  })).max(30).optional(),
+  })).max(60).optional(),
   amenity_ids: z.array(z.string().uuid()).max(50).optional(),
   features: z.array(z.object({
     feature_key: z.string().min(1).max(80),
@@ -199,6 +200,7 @@ export const PropertyController = {
 
   create: asyncRoute(async (req, res) => {
     const body = propertyBody.parse(req.body) as PropertyWrite;
+    validateMediaCounts(body.images || [], await mediaSettings());
     const photos = (body.images || []).filter((image) => image.image_type !== "video");
     if (photos.length < 2) throw new HttpError(400, "Add at least 2 photos.");
     const created = await withDb(req.user!.id, (db) => PropertyModel.create(db, { ...body, status: "draft" }));
@@ -208,6 +210,7 @@ export const PropertyController = {
   update: asyncRoute(async (req, res) => {
     const body = propertyBody.partial().parse(req.body) as PropertyWrite;
     if (body.images) {
+      validateMediaCounts(body.images, await mediaSettings());
       const photos = body.images.filter((image) => image.image_type !== "video");
       if (photos.length < 2) throw new HttpError(400, "Add at least 2 photos.");
     }

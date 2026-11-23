@@ -1,3 +1,4 @@
+import { mediaSettings, saveMediaSettings } from "../services/mediaSettings.js";
 import bcrypt from "bcryptjs";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
@@ -84,6 +85,12 @@ export const AdminController = {
     const row = await withDb(req.user!.id, (db) => AdminModel.updateDocument(db, req.params.id, body.verification_status));
     if (!row) throw new HttpError(404, "Document not found");
     res.json(row);
+  }),
+
+  mediaSettings: asyncRoute(async (_req, res) => { res.json(await mediaSettings()); }),
+  updateMediaSettings: asyncRoute(async (req, res) => {
+    await assertAdmin(req.user!.id);
+    res.json(await saveMediaSettings(req.body));
   }),
 
   listingSettings: asyncRoute(async (_req, res) => {

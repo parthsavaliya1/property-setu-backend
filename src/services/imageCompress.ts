@@ -1,11 +1,5 @@
+import { defaultMediaSettings, type MediaSettings } from "./mediaSettings.js";
 import sharp from "sharp";
-
-function envInt(name: string, fallback: number) {
-  const raw = process.env[name];
-  if (raw == null || String(raw).trim() === "") return fallback;
-  const value = Number(raw);
-  return Number.isFinite(value) && value > 0 ? value : fallback;
-}
 
 function outputFormat(filename: string, meta: { format?: string; hasAlpha?: boolean }) {
   const ext = filename.split(".").pop()?.toLowerCase() || "";
@@ -16,12 +10,12 @@ function outputFormat(filename: string, meta: { format?: string; hasAlpha?: bool
 }
 
 async function encodeAtEdge(input: Buffer, maxEdge: number, format: string, jpegQuality: number) {
-  const pipeline = sharp(input).rotate().resize(maxEdge, maxEdge, {
+  const pipeline = sharp(input, { animated: format === "gif" }).rotate().resize(maxEdge, maxEdge, {
     fit: "inside",
     withoutEnlargement: true,
   });
 
-  if (format === "gif") return { buffer: input, contentType: "image/gif" };
+  if (format === "gif") return { buffer: await pipeline.gif({ effort: 7 }).toBuffer(), contentType: "image/gif" };
   if (format === "jpeg") {
     const buffer = await pipeline.jpeg({ quality: jpegQuality, mozjpeg: true, force: true }).toBuffer();
     return { buffer, contentType: "image/jpeg" };
@@ -37,20 +31,20 @@ async function encodeAtEdge(input: Buffer, maxEdge: number, format: string, jpeg
       compressionLevel: 9,
       effort: 10,
       palette: !meta.hasAlpha,
-      quality: meta.hasAlpha ? 75 : 80,
+      quality: jpegQuality,
       force: true,
     })
     .toBuffer();
   return { buffer, contentType: "image/png" };
 }
 
-export async function compressImageBuffer(input: Buffer, filename = "") {
-  const maxEdgeStart = envInt("MEDIA_IMAGE_MAX_EDGE", 720);
-  const targetBytes = envInt("MEDIA_IMAGE_TARGET_BYTES", 60 * 1024);
-  const jpegQuality = envInt("MEDIA_IMAGE_JPEG_QUALITY", 85);
+export async function compressImageBuffer(input: Buffer, filename = "", settings?: MediaSettings) {
+  const limits = settings || defaultMediaSettings();
+  const maxEdgeStart = limits.photoMaxEdge;
+  const targetBytes = limits.photoTargetKb * 1024;
+  const jpegQuality = limits.photoQuality;
   const meta = await sharp(input).metadata();
   const format = outputFormat(filename, meta);
-  if (format === "gif") return { buffer: input, contentType: "image/gif" };
 
   let maxEdge = maxEdgeStart;
   let last = await encodeAtEdge(input, maxEdge, format, jpegQuality);
