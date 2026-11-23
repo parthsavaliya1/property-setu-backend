@@ -8,7 +8,7 @@ import { promisify } from "node:util";
 import { createRequire } from "node:module";
 import sharp from "sharp";
 import { pool } from "../src/db.js";
-import { mediaSettings, saveMediaSettings, defaultMediaSettings, clearMediaSettingsCache, mediaSettingsSchema, validateMediaCounts } from "../src/services/mediaSettings.js";
+import { mediaSettings, saveMediaSettings, defaultMediaSettings, clearMediaSettingsCache, mediaSettingsSchema, propertyImageType, validateMediaCounts } from "../src/services/mediaSettings.js";
 import { compressVideoBuffer, durationFromOutput } from "../src/services/videoCompress.js";
 import { compressImageBuffer } from "../src/services/imageCompress.js";
 const execute = promisify(execFile);
@@ -22,6 +22,8 @@ test("admin media settings persist together, reject invalid values, and enforce 
     return { rows: stored ? [{ value: stored }] : [] };
   }) as unknown as typeof pool.query);
   clearMediaSettingsCache();
+  assert.equal(propertyImageType.safeParse("video").success, true);
+  assert.equal(propertyImageType.safeParse("invalid-type").success, false);
   const value = { ...defaultMediaSettings(), maxPhotos: 5, maxVideos: 2, maxVideoDurationSeconds: 60, photoMaxEdge: 1280, videoMaxEdge: 720, videoQuality: "high" as const };
   assert.deepEqual(await saveMediaSettings(value), value);
   clearMediaSettingsCache();

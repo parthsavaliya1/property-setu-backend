@@ -2,6 +2,11 @@ import { z } from "zod";
 import { pool } from "../db.js";
 import { HttpError } from "../errors.js";
 
+export const propertyImageType = z.enum([
+  "cover", "gallery", "exterior", "interior", "bedroom", "kitchen", "bathroom",
+  "balcony", "garden", "parking", "floor_plan", "other", "video",
+]);
+
 export const mediaSettingsSchema = z.object({
   maxPhotos: z.number().int().min(2).max(50),
   maxVideos: z.number().int().min(0).max(10),

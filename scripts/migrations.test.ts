@@ -52,3 +52,25 @@ test('entire migration history installs without Supabase and preserves account f
     assert.equal((await db.query<{ id: string }>('SELECT auth.uid() AS id')).rows[0].id, '00000000-0000-4000-8000-000000000002');
   } finally { await db.close(); }
 });
+
+
+test('photo/video migration fixes existing databases and preserves valid photo types', async () => {
+  const db = new PGlite();
+  const id = '00000000-0000-4000-8000-000000000010';
+  try {
+    await db.exec(`CREATE TABLE public.properties (id uuid PRIMARY KEY); INSERT INTO properties VALUES ('${id}');`);
+    await db.exec(await fs.readFile(new URL('../migrations/008_property_images.sql', import.meta.url), 'utf8'));
+    await db.query("INSERT INTO property_images (property_id,image_url,image_type,is_cover) VALUES ($1,'https://media.example/photo.jpg','gallery',true)", [id]);
+    await assert.rejects(db.query("INSERT INTO property_images (property_id,image_url,image_type) VALUES ($1,'https://media.example/video.mp4','video')", [id]), error => (error as { code?: string }).code === '23514');
+    const migration = await fs.readFile(new URL('../migrations/055_property_images_video_type.sql', import.meta.url), 'utf8');
+    await db.exec(migration);
+    await db.exec(migration); // Safe if manually retried.
+    for (const name of ['one', 'two']) await db.query("INSERT INTO property_images (property_id,image_url,image_type) VALUES ($1,$2,'video')", [id, `https://media.example/${name}.mp4`]);
+    assert.equal((await db.query("SELECT * FROM property_images WHERE image_type='video'")).rows.length, 2);
+    assert.equal((await db.query("SELECT * FROM property_images WHERE image_type='gallery' AND is_cover")).rows.length, 1);
+    await db.query("UPDATE property_images SET image_url='https://media.example/edited.mp4' WHERE image_type='video'");
+    await assert.rejects(db.query("INSERT INTO property_images (property_id,image_url,image_type) VALUES ($1,'https://media.example/invalid','invalid-type')", [id]), error => (error as { code?: string }).code === '23514');
+    const mirrored = await fs.readFile(new URL('../../supabase/migrations/055_property_images_video_type.sql', import.meta.url), 'utf8');
+    assert.equal(mirrored, migration);
+  } finally { await db.close(); }
+});

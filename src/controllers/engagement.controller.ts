@@ -1,4 +1,4 @@
-import { mediaSettings, validateMediaCounts } from "../services/mediaSettings.js";
+import { mediaSettings, propertyImageType, validateMediaCounts } from "../services/mediaSettings.js";
 import { z } from "zod";
 import { pool, withDb } from "../db.js";
 import { HttpError } from "../errors.js";
@@ -247,7 +247,7 @@ export const EngagementController = {
     const body = z.object({
       image_url: z.string().url(),
       thumbnail_url: z.string().url().optional(),
-      image_type: z.string().default("gallery"),
+      image_type: propertyImageType.default("gallery"),
       is_cover: z.boolean().optional(),
     }).parse(req.body);
     const limits = await mediaSettings();

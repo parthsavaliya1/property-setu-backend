@@ -1,4 +1,4 @@
-import { mediaSettings, validateMediaCounts } from "../services/mediaSettings.js";
+import { mediaSettings, propertyImageType, validateMediaCounts } from "../services/mediaSettings.js";
 import { deleteAccount } from "../services/accountDeletion.js";
 import { z } from "zod";
 import { pool, withDb, type Db } from "../db.js";
@@ -61,7 +61,7 @@ const propertyBody = z.object({
   images: z.array(z.object({
     image_url: z.string().url(),
     thumbnail_url: z.string().url().optional(),
-    image_type: z.string().optional(),
+    image_type: propertyImageType.optional(),
     is_cover: z.boolean().optional(),
     sort_order: z.number().int().optional(),
   })).max(60).optional(),
