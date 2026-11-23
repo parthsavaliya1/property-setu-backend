@@ -168,6 +168,7 @@ export const PropertyController = {
       min_price: z.coerce.number().optional(),
       max_price: z.coerce.number().optional(),
       bedrooms: z.coerce.number().int().optional(),
+      parking: z.enum(["true", "false"]).optional(),
       featured: z.enum(["true", "false"]).optional(),
       mine: z.enum(["true", "false"]).optional(),
       status: status.optional(),

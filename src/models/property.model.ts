@@ -78,6 +78,7 @@ export type PropertyListQuery = {
   min_price?: number;
   max_price?: number;
   bedrooms?: number;
+  parking?: "true" | "false";
   featured?: "true" | "false";
   mine?: "true" | "false";
   status?: string;
@@ -162,6 +163,13 @@ export const PropertyModel = {
     if (query.min_price != null) add("p.price >= ?", query.min_price);
     if (query.max_price != null) add("p.price <= ?", query.max_price);
     if (query.bedrooms != null) add("p.bedrooms >= ?", query.bedrooms);
+    if (query.parking === "true") where.push(`(
+      p.parking_spaces > 0 OR EXISTS (
+        SELECT 1 FROM property_amenities pa
+        JOIN amenities parking_amenity ON parking_amenity.id = pa.amenity_id
+        WHERE pa.property_id = p.id AND parking_amenity.slug = 'parking'
+      )
+    )`);
     if (query.featured === "true") where.push("p.is_featured = true");
     if (query.category) {
       params.push(query.category);
@@ -169,6 +177,7 @@ export const PropertyModel = {
       where.push(`(
         c.slug = ${ref} OR c.id::text = ${ref}
         OR parent.slug = ${ref} OR parent.id::text = ${ref}
+        OR (${ref} = 'commercial' AND c.slug = 'commercial-plot')
       )`);
     }
     if (query.q) {
